@@ -963,6 +963,29 @@ button:disabled {
   white-space: pre-wrap;
 }
 
+.project-report-title-preview {
+  border-radius: 16px;
+  border: 1px solid #dbeafe;
+  background: linear-gradient(135deg, #ffffff, #eff6ff);
+  padding: 16px;
+}
+
+.project-report-title-preview span {
+  display: block;
+  margin-bottom: 6px;
+  color: #43a7dd;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.project-report-title-preview strong {
+  display: block;
+  color: #173763;
+  font-size: clamp(20px, 3vw, 30px);
+  font-weight: 950;
+  line-height: 1.35;
+}
+
 .project-report-image-picker {
   border-radius: 14px;
   border: 1px solid #dbeafe;

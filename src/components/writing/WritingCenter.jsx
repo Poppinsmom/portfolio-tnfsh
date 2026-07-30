@@ -182,8 +182,8 @@ const TitleCenter = ({ savedTitles, onSaveTitle, onUpdateTitle, onDeleteTitle, o
       <div className="writing-panel">
         <div className="writing-panel-header">
           <div>
-            <p className="writing-eyebrow">Title Center</p>
-            <h2>標題中心</h2>
+            <p className="writing-eyebrow">Title Writing</p>
+            <h2>標題寫作</h2>
           </div>
           <p>建立可收藏、可管理、可重複使用的學習歷程標題資料庫。</p>
         </div>
@@ -347,7 +347,7 @@ export default function WritingCenter({
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <ToolCard
           icon={Tag}
-          title="標題中心"
+          title="標題寫作"
           description="建立、收藏、管理可重複使用的標題資料庫。"
           enabled
           onClick={() => setSection('titles')}

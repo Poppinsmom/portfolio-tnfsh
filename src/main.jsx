@@ -106,6 +106,8 @@ const createDefaultDailyReflection = () => ({
 });
 
 const createDefaultProjectReport = () => ({
+  titleId: '',
+  title: '',
   difficultyEntries: [],
   resultPages: [],
   reflection: { templateId: '', templateText: '', fields: {} }
@@ -621,11 +623,16 @@ const MissionList = ({ missions, projects, onEdit, onDelete }) => {
   );
 };
 
-const ProjectReportEditor = ({ project, missions, reflectionTemplates, onSaveProject, onBack }) => {
+const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTitles = [], onSaveProject, onBack }) => {
   const report = { ...createDefaultProjectReport(), ...(project.report || {}) };
+  const reportTitle = report.title || '';
   const difficultyEntries = Array.isArray(report.difficultyEntries) ? report.difficultyEntries : [];
   const resultPages = Array.isArray(report.resultPages) ? report.resultPages : [];
   const reflection = { templateId: '', templateText: '', fields: {}, ...(report.reflection || {}) };
+  const sortedWritingTitles = useMemo(
+    () => [...writingTitles].sort((a, b) => Number(Boolean(b.favorite)) - Number(Boolean(a.favorite))),
+    [writingTitles]
+  );
   const placeholders = getTemplatePlaceholders(reflection.templateText);
   const [isExportingPpt, setIsExportingPpt] = useState(false);
   const [pptStatus, setPptStatus] = useState('');
@@ -679,6 +686,14 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, onSavePro
 
   const deleteDifficultyEntry = (id) => {
     updateReport({ difficultyEntries: difficultyEntries.filter(entry => entry.id !== id) });
+  };
+
+  const selectReportTitle = (titleId) => {
+    const selectedTitle = sortedWritingTitles.find(item => item.id === titleId);
+    updateReport({
+      titleId,
+      title: selectedTitle?.title || ''
+    });
   };
 
   const addResultPage = (sourceMode = 'manual') => {
@@ -868,7 +883,7 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, onSavePro
       pptx.layout = 'LAYOUT_WIDE';
       pptx.author = 'Poppins Learning Portfolio';
       pptx.subject = project.name || 'Project Report';
-      pptx.title = `${project.name || 'Project'} Project Report`;
+      pptx.title = reportTitle || `${project.name || 'Project'} Project Report`;
       pptx.company = 'Poppins Learning Portfolio';
       pptx.lang = 'zh-TW';
       pptx.theme = {
@@ -886,7 +901,7 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, onSavePro
 
       const addBodySlide = (title, body, options = {}) => {
         splitTextForSlides(body || '未填寫', options.maxLength || 820).forEach((chunk, index) => {
-          const slide = addSectionSlide(index === 0 ? title : `${title}（續）`, project.name || '');
+          const slide = addSectionSlide(index === 0 ? title : `${title}（續）`, reportTitle || project.name || '');
           slide.addText(chunk, { x: 0.75, y: 1.45, w: 11.75, h: 5.4, fontSize: options.fontSize || 15, color: '334155', breakLine: false, fit: 'shrink', valign: 'top' });
         });
       };
@@ -1015,6 +1030,39 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, onSavePro
         </div>
       </div>
       {pptStatus && <p className="project-report-hint">{pptStatus}</p>}
+
+      <section className="project-report-section">
+        <h4><Tag size={18} /> 專案標題</h4>
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">從標題寫作選擇</label>
+            <select value={report.titleId || ''} onChange={event => selectReportTitle(event.target.value)}
+              className="w-full rounded-xl border-slate-300 border p-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="">選擇標題寫作清單</option>
+              {sortedWritingTitles.map(item => (
+                <option key={item.id} value={item.id}>
+                  {item.favorite ? '⭐ ' : ''}{item.title || '未命名標題'}
+                </option>
+              ))}
+            </select>
+            {sortedWritingTitles.length === 0 && (
+              <p className="project-report-hint">標題寫作目前沒有收藏標題，請先到寫作中心建立。</p>
+            )}
+          </div>
+          <Input
+            label="專案報告標題"
+            value={reportTitle}
+            onChange={value => updateReport({ title: value, titleId: report.titleId || '' })}
+            placeholder="例如：三個月 Arduino 智慧避障車專題研究"
+          />
+        </div>
+        {reportTitle && (
+          <div className="project-report-title-preview">
+            <span>報告標題</span>
+            <strong>{reportTitle}</strong>
+          </div>
+        )}
+      </section>
 
       <section className="project-report-section">
         <h4><Bug size={18} /> 一、過程遭遇的困難及困難解決的歷程</h4>
@@ -2244,6 +2292,7 @@ export default function App() {
                 project={selectedProject || createDefaultProject()}
                 missions={missions}
                 reflectionTemplates={REFLECTION_TEMPLATES}
+                writingTitles={writingTitles}
                 onSaveProject={handleSaveProject}
                 onBack={() => setCurrentTab('projects')}
               />
