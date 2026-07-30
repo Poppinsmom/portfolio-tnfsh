@@ -956,6 +956,24 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
     });
   };
 
+  const rasterizeSvgDataUrl = (dataUrl) => new Promise((resolve) => {
+    if (!dataUrl?.startsWith('data:image/svg+xml')) {
+      resolve(dataUrl || '');
+      return;
+    }
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1600;
+      canvas.height = 900;
+      const context = canvas.getContext('2d');
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    image.onerror = () => resolve(dataUrl);
+    image.src = dataUrl;
+  });
+
   const exportProjectPpt = async () => {
     setIsExportingPpt(true);
     setPptStatus('正在產生 PPT...');
@@ -976,12 +994,13 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
       const reportDate = [project.startDate, project.endDate].filter(Boolean).join(' - ') || new Date().toISOString().slice(0, 10);
       const headerTitle = reportTitle || 'Project Report';
       const headerSubtitle = reportSubtitle || '';
-      const hasPptBackground = report.pptBackgroundDataUrl?.startsWith('data:image');
+      const pptBackgroundForExport = await rasterizeSvgDataUrl(report.pptBackgroundDataUrl);
+      const hasPptBackground = pptBackgroundForExport?.startsWith('data:image');
 
       const applySlideBackground = (slide, fallbackColor = 'F8FAFC') => {
         slide.background = { color: fallbackColor };
         if (hasPptBackground) {
-          slide.addImage({ data: report.pptBackgroundDataUrl, x: 0, y: 0, w: 13.333, h: 7.5 });
+          slide.addImage({ data: pptBackgroundForExport, x: 0, y: 0, w: 13.333, h: 7.5 });
         }
       };
 
