@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useDropzone } from 'react-dropzone';
 import ReactMarkdown from 'react-markdown';
 import { 
   Home, BookOpen, Database, Settings, Plus, Trash2, Upload, Download, 
   Search, Check, X, Image as ImageIcon, Code, Bug, Github, Star, Tag, 
-  Save, ChevronLeft, Calendar, Target, CheckCircle, Clock, MapPin, User, 
-  ArrowUp, ArrowDown, Maximize2, FileText, LayoutDashboard, FileJson
+  Save, ChevronLeft, Calendar, Target, CheckCircle, Clock, MapPin, User, Edit3,
+  ArrowUp, ArrowDown, Maximize2, FileText, LayoutDashboard, FileJson, PenLine
 } from 'lucide-react';
+import LearningPortfolioPDF from './components/pdf/LearningPortfolioPDF';
+import WritingCenter from './components/writing/WritingCenter';
 import './styles.css';
 
 const DEFAULT_AVAILABLE_TAGS = [
@@ -18,6 +20,7 @@ const DEFAULT_AVAILABLE_TAGS = [
 const MISSIONS_KEY = 'poppins_missions';
 const PROJECTS_KEY = 'poppins_projects';
 const TAGS_KEY = 'poppins_available_tags';
+const TITLES_KEY = 'poppins_writing_titles';
 
 const PROGRAMMING_LANGUAGES = [
   "cpp", "c", "python", "javascript", "java", "html", "css", "json", "markdown", "bash"
@@ -55,10 +58,82 @@ const REFLECTION_TEMPLATES = [
 學習過程中，我最大的挑戰是 **【最大困難】**。起初因為 **【困難原因】**，讓我一度無法順利完成程式，但透過 **【突破方式】**，最終成功克服問題，也讓我對 **【學到的新觀念】** 有更深入的理解。
 
 回顧整個學習歷程，我最大的成長在於 **【最大成長】**，不只是學會撰寫程式，更培養了獨立思考與解決問題的能力。未來，我希望持續學習 **【下一步】**，並將這次經驗作為挑戰 APCS 與資訊相關課程的重要基礎。`
+  },
+  {
+    id: 'future-plan',
+    name: '模板五｜未來展望與行動計畫',
+    content: `完成本次專案後，我對 **【學習主題】** 有了更完整的理解，也從 **【重要經驗】** 中看見自己仍可加強的方向。回顧整個過程，我認為最值得延伸的是 **【可延伸方向】**，因為這能讓作品或學習成果更接近實際應用。
+
+接下來，我希望先針對 **【優先改進項目】** 進行優化，並透過 **【具體方法】** 持續修正。若時間允許，我也想挑戰 **【進階目標】**，讓本次學習不只停留在完成作品，而能成為下一個專題或自主學習計畫的基礎。
+
+這次經驗讓我了解到，學習歷程不只是記錄成果，更重要的是呈現自己如何規劃、嘗試、修正與成長。未來我會持續累積 **【想培養的能力】**，並將這些經驗運用在 **【未來應用情境】**。`
   }
 ];
 
-const getTemplatePlaceholders = (content) => [...new Set(content.match(/【[^】]+】/g) || [])];
+const DAILY_REFLECTION_ITEMS = [
+  {
+    key: 'learning',
+    title: '今天學到了什麼？',
+    prompt: '請記錄今天最重要的新知識或技能。',
+    examples: ['學會 Git Commit', '完成 STL Vector 練習', '理解 Pointer 基本概念']
+  },
+  {
+    key: 'challenge',
+    title: '今天最大的挑戰',
+    prompt: '今天遇到哪些問題？',
+    examples: ['Git Push 一直失敗', 'Pointer 觀念混亂', '程式一直 Compile Error']
+  },
+  {
+    key: 'solution',
+    title: '我如何解決？',
+    prompt: '今天如何突破問題？',
+    examples: ['查官方文件', '請教老師', 'Debug', '重構程式']
+  },
+  {
+    key: 'harvest',
+    title: '今天最大的收穫／下一步',
+    prompt: '今天最大的收穫是什麼？下一步希望挑戰什麼？',
+    examples: ['理解 Git 工作流程', '想學 Branch', '想完成 DFS']
+  }
+];
+
+const createDefaultDailyReflection = () => ({
+  learning: '',
+  challenge: '',
+  solution: '',
+  harvest: ''
+});
+
+const createDefaultProjectReport = () => ({
+  difficultyEntries: [],
+  resultPages: [],
+  reflection: { templateId: '', templateText: '', fields: {} }
+});
+
+const RESULT_TYPES = [
+  { id: 'note', label: '📖 學習筆記' },
+  { id: 'code', label: '💻 程式碼' },
+  { id: 'github', label: '🔗 GitHub' },
+  { id: 'image', label: '🖼 成果圖片' },
+  { id: 'certificate', label: '🏅 證書' },
+  { id: 'attachment', label: '📎 其他附件' }
+];
+
+const createId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+const normalizeDailyReflection = (mission = {}) => ({
+  ...createDefaultDailyReflection(),
+  ...(mission.dailyReflection || {}),
+  learning: mission.dailyReflection?.learning || mission.reflection?.takeaway || '',
+  challenge: mission.dailyReflection?.challenge || mission.reflection?.difficulty || '',
+  solution: mission.dailyReflection?.solution || mission.reflection?.overcome || '',
+  harvest: mission.dailyReflection?.harvest || mission.reflection?.next || ''
+});
+
+const safeText = (value) => String(value || '').toLowerCase();
+const includesSearch = (value, search) => safeText(value).includes(safeText(search));
+const getTemplatePlaceholders = (content) => [...new Set(String(content || '').match(/【[^】]+】/g) || [])];
+const isMediaResultType = (type) => ['image', 'certificate', 'attachment'].includes(type);
 
 const DB_NAME = 'poppins_db';
 const STORE_NAME = 'poppins_store';
@@ -90,37 +165,11 @@ const localforage = {
   }
 };
 
-const SyntaxHighlighter = ({ language, children }) => {
-  const codeRef = React.useRef(null);
-  React.useEffect(() => {
-    if (!document.getElementById('prism-css')) {
-      const link = document.createElement('link');
-      link.id = 'prism-css';
-      link.rel = 'stylesheet';
-      link.href = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css';
-      document.head.appendChild(link);
-    }
-    if (!document.getElementById('prism-js')) {
-      const script = document.createElement('script');
-      script.id = 'prism-js';
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js';
-      script.onload = () => {
-        if (window.Prism && codeRef.current) window.Prism.highlightElement(codeRef.current);
-      };
-      document.body.appendChild(script);
-    } else if (window.Prism && codeRef.current) {
-      window.Prism.highlightElement(codeRef.current);
-    }
-  }, [children, language]);
-
-  return (
-    <pre className="rounded-xl m-0 text-sm bg-[#2d2d2d] p-4 overflow-x-auto text-slate-50" style={{ margin: 0, borderRadius: '0.75rem' }}>
-      <code ref={codeRef} className={`language-${language}`}>
-        {children}
-      </code>
-    </pre>
-  );
-};
+const SyntaxHighlighter = ({ language, children }) => (
+  <pre className="code-block rounded-xl m-0 text-sm p-4 overflow-x-auto text-slate-50" style={{ margin: 0, borderRadius: '0.75rem' }}>
+    <code data-language={language}>{children}</code>
+  </pre>
+);
 
 const createDefaultMission = () => ({
   id: Date.now().toString(),
@@ -136,7 +185,7 @@ const createDefaultMission = () => ({
   bugs: [],
   githubs: [],
   images: [],
-  reflection: { templateId: '', templateText: '', fields: {}, takeaway: '', difficulty: '', overcome: '', next: '' },
+  dailyReflection: createDefaultDailyReflection(),
   isMasterpiece: false,
   masterpieceDetail: { name: '', features: '' },
   tags: []
@@ -150,28 +199,159 @@ const createDefaultProject = () => ({
   teacher: '',
   location: '',
   goal: '',
-  content: ''
+  content: '',
+  report: createDefaultProjectReport()
 });
 
-const normalizeMission = (mission) => ({
-  ...createDefaultMission(),
-  ...mission,
-  projectId: mission.projectId || '',
-  codes: mission.codes || [],
-  bugs: mission.bugs || [],
-  githubs: mission.githubs || [],
-  images: mission.images || [],
-  reflection: { templateId: '', templateText: '', fields: {}, takeaway: '', difficulty: '', overcome: '', next: '', ...(mission.reflection || {}) },
-  masterpieceDetail: { name: '', features: '', ...(mission.masterpieceDetail || {}) },
-  tags: mission.tags || []
-});
+const normalizeMission = (mission) => {
+  const { reflection, ...missionWithoutLegacyReflection } = mission || {};
+  return {
+    ...createDefaultMission(),
+    ...missionWithoutLegacyReflection,
+    projectId: mission?.projectId || '',
+    codes: mission?.codes || [],
+    bugs: mission?.bugs || [],
+    githubs: mission?.githubs || [],
+    images: mission?.images || [],
+    dailyReflection: normalizeDailyReflection({ ...missionWithoutLegacyReflection, reflection }),
+    masterpieceDetail: { name: '', features: '', ...(mission?.masterpieceDetail || {}) },
+    tags: mission?.tags || []
+  };
+};
 
 const normalizeProject = (project) => ({
   ...createDefaultProject(),
   ...project,
   teacher: project.teacher || '',
-  location: project.location || ''
+  location: project.location || '',
+  report: {
+    ...createDefaultProjectReport(),
+    ...(project.report || {}),
+    difficultyEntries: Array.isArray(project.report?.difficultyEntries) ? project.report.difficultyEntries : [],
+    resultPages: Array.isArray(project.report?.resultPages)
+      ? project.report.resultPages
+      : (Array.isArray(project.report?.resultCards) ? project.report.resultCards : []),
+    reflection: {
+      templateId: '',
+      templateText: '',
+      fields: {},
+      ...(project.report?.reflection || {})
+    }
+  }
 });
+
+const normalizeWritingTitle = (title) => ({
+  id: title.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  title: title.title || '',
+  templateId: title.templateId || '',
+  templateName: title.templateName || '自訂標題',
+  favorite: Boolean(title.favorite),
+  createdAt: title.createdAt || new Date().toISOString()
+});
+
+const createDifficultyEntryFromMission = (mission) => ({
+  id: createId(),
+  missionId: mission.id,
+  date: mission.date || '',
+  title: mission.title || '未命名 Mission',
+  content: mission.content || '',
+  dailyReflection: {
+    ...createDefaultDailyReflection(),
+    ...(mission.dailyReflection || {})
+  }
+});
+
+const createDefaultResultCard = () => ({
+  id: createId(),
+  title: '',
+  type: 'code',
+  sourceMode: 'manual',
+  missionId: '',
+  sourceId: '',
+  sourceIds: [],
+  sourceItems: [],
+  sourceLabel: '',
+  sourceDetail: '',
+  sourceDataUrl: '',
+  sourceUrl: '',
+  sourceCode: '',
+  sourceLanguage: '',
+  attachmentName: '',
+  description: ''
+});
+
+const getMissionResultOptions = (mission, type) => {
+  if (!mission) return [];
+  if (type === 'code') {
+    return (mission.codes || []).map(code => ({
+      id: code.id,
+      label: code.filename || `${(code.language || 'code').toUpperCase()} 程式碼`,
+      detail: [code.language && `語言：${code.language}`, code.description && `說明：${code.description}`].filter(Boolean).join('\n'),
+      code: code.code || '',
+      language: code.language || '',
+      title: code.filename || '程式碼成果'
+    }));
+  }
+  if (type === 'github') {
+    return (mission.githubs || []).map(github => ({
+      id: github.id,
+      label: github.repo || github.url || 'GitHub 紀錄',
+      detail: [`Branch：${github.branch || '未填寫'}`, `Commit：${github.commit || '未填寫'}`, github.url && `URL：${github.url}`].filter(Boolean).join('\n'),
+      url: github.url || '',
+      title: github.repo || 'GitHub Repository'
+    }));
+  }
+  if (isMediaResultType(type)) {
+    return (mission.images || []).map((image, index) => ({
+      id: image.id,
+      label: image.note || `圖片 ${index + 1}`,
+      detail: image.note || '未填寫圖片備註',
+      dataUrl: image.dataUrl || '',
+      title: image.note || `成果圖片 ${index + 1}`
+    }));
+  }
+  return [];
+};
+
+const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = event => resolve(event.target.result);
+  reader.onerror = () => reject(reader.error);
+  reader.readAsDataURL(file);
+});
+
+const cleanFileName = (value) => String(value || 'ProjectReport')
+  .replace(/[\\/:*?"<>|]/g, '_')
+  .replace(/\s+/g, '_')
+  .slice(0, 80);
+
+const renderProjectReflectionText = (reflection = {}) => {
+  if (!reflection.templateText) return '';
+  return reflection.templateText
+    .replace(/【[^】]+】/g, placeholder => reflection.fields?.[placeholder] || '')
+    .replace(/\*\*/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
+
+const splitTextForSlides = (value, maxLength = 780) => {
+  const text = String(value || '').trim();
+  if (!text) return [];
+  const chunks = [];
+  let remaining = text;
+  while (remaining.length > maxLength) {
+    const breakAt = Math.max(
+      remaining.lastIndexOf('\n\n', maxLength),
+      remaining.lastIndexOf('\n', maxLength),
+      remaining.lastIndexOf('。', maxLength)
+    );
+    const index = breakAt > maxLength * 0.45 ? breakAt + 1 : maxLength;
+    chunks.push(remaining.slice(0, index).trim());
+    remaining = remaining.slice(index).trim();
+  }
+  if (remaining) chunks.push(remaining);
+  return chunks;
+};
 
 // Image compression to save IndexedDB space
 const compressImage = (file) => {
@@ -230,7 +410,7 @@ const SectionCard = ({ title, icon: Icon, children, action }) => (
   </div>
 );
 
-const Button = ({ children, onClick, variant = 'primary', className = '', icon: Icon }) => {
+const Button = ({ children, onClick, variant = 'primary', className = '', icon: Icon, disabled = false, title, type = 'button' }) => {
   const base = "inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-medium transition-all active:scale-95 text-sm";
   const variants = {
     primary: "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow",
@@ -239,17 +419,17 @@ const Button = ({ children, onClick, variant = 'primary', className = '', icon: 
     ghost: "text-slate-600 hover:bg-slate-100"
   };
   return (
-    <button onClick={onClick} className={`${base} ${variants[variant]} ${className}`}>
+    <button type={type} onClick={onClick} disabled={disabled} title={title} aria-label={title} className={`${base} ${variants[variant]} ${className}`}>
       {Icon && <Icon size={16} />}
       {children}
     </button>
   );
 };
 
-const Input = ({ label, type="text", value, onChange, placeholder }) => (
+const Input = ({ label, type="text", value, onChange, placeholder, min, step }) => (
   <div>
     <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
-    <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+    <input type={type} value={value} min={min} step={step} onChange={e => onChange(e.target.value)} placeholder={placeholder}
       className="w-full rounded-xl border-slate-300 border p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
   </div>
 );
@@ -262,80 +442,40 @@ const Textarea = ({ label, value, onChange, placeholder, rows=3 }) => (
   </div>
 );
 
-const ReflectionTemplateEditor = ({ reflection, onChange, readonly = false }) => {
-  const currentTemplateText = reflection.templateText || '';
-  const fields = reflection.fields || {};
-  const placeholders = getTemplatePlaceholders(currentTemplateText);
+const DailyReflectionGrid = ({ value, onChange, readonly = false }) => {
+  const dailyReflection = { ...createDefaultDailyReflection(), ...(value || {}) };
 
-  const applyTemplate = (templateId) => {
-    const template = REFLECTION_TEMPLATES.find(item => item.id === templateId);
-    if (!template) {
-      onChange({ ...reflection, templateId: '', templateText: '', fields: {} });
-      return;
-    }
-    const nextFields = {};
-    getTemplatePlaceholders(template.content).forEach(key => {
-      nextFields[key] = fields[key] || '';
-    });
-    onChange({ ...reflection, templateId, templateText: template.content, fields: nextFields });
-  };
-
-  const updateField = (key, value) => {
-    onChange({ ...reflection, fields: { ...fields, [key]: value } });
-  };
-
-  const renderFillableContent = () => {
-    if (!currentTemplateText) {
-      return <p className="text-slate-400">請先選擇模板。</p>;
-    }
-    return currentTemplateText.split(/(【[^】]+】)/g).map((part, index) => {
-      if (!part.match(/^【[^】]+】$/)) {
-        return <span key={`${part}-${index}`} className="whitespace-pre-wrap">{part}</span>;
-      }
-      const label = part.slice(1, -1);
-      if (readonly) {
-        return <span key={part} className="font-bold text-blue-700">{fields[part] || part}</span>;
-      }
-      return (
-        <input key={`${part}-${index}`} value={fields[part] || ''} onChange={e => updateField(part, e.target.value)}
-          placeholder={label}
-          className="mx-1 my-1 inline-block min-w-[9rem] rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-sm text-blue-900 outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100" />
-      );
-    });
+  const updateDailyReflection = (key, nextValue) => {
+    onChange?.({ ...dailyReflection, [key]: nextValue });
   };
 
   return (
-    <div className="space-y-4">
-      {!readonly && (
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">選擇反思模板</label>
-          <select value={reflection.templateId || ''} onChange={e => applyTemplate(e.target.value)}
-            className="w-full rounded-xl border-slate-300 border p-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-            <option value="">請選擇模板</option>
-            {REFLECTION_TEMPLATES.map(template => <option key={template.id} value={template.id}>{template.name}</option>)}
-          </select>
-        </div>
-      )}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 leading-8 text-slate-700">
-        {renderFillableContent()}
-      </div>
-      {!readonly && placeholders.length > 0 && (
-        <p className="text-xs text-slate-500">藍色欄位是模板中的可填寫內容，輸入後會和 Mission 一起儲存。</p>
-      )}
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      {DAILY_REFLECTION_ITEMS.map(item => (
+        <article key={item.key} className="daily-reflection-card">
+          <div className="daily-reflection-examples">
+            <h4>{item.title}</h4>
+            <p>{item.prompt}</p>
+            <ul>
+              {item.examples.map(example => <li key={example}>{example}</li>)}
+            </ul>
+          </div>
+          {readonly ? (
+            <p className="daily-reflection-readonly">{dailyReflection[item.key] || '未填寫'}</p>
+          ) : (
+            <textarea
+              value={dailyReflection[item.key]}
+              onChange={event => updateDailyReflection(item.key, event.target.value)}
+              rows={4}
+              maxLength={180}
+              placeholder="80～150 字，快速記錄今天的重點。"
+            />
+          )}
+        </article>
+      ))}
     </div>
   );
 };
-
-const ReflectionTemplateCenter = () => (
-  <div className="space-y-4">
-    {REFLECTION_TEMPLATES.map(template => (
-      <div key={template.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h3 className="text-lg font-bold text-slate-800 mb-4">{template.name}</h3>
-        <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 leading-8 text-slate-700 whitespace-pre-wrap">{template.content}</div>
-      </div>
-    ))}
-  </div>
-);
 
 const Dashboard = ({ missions, projects }) => {
   const stats = useMemo(() => {
@@ -344,7 +484,7 @@ const Dashboard = ({ missions, projects }) => {
     const tagCounts = {};
 
     missions.forEach(m => {
-      if (m.reflection.takeaway || m.reflection.templateText || m.codes.length > 0 || m.images.length > 0) completed++;
+      if (Object.values(m.dailyReflection || {}).some(Boolean) || m.codes.length > 0 || m.images.length > 0) completed++;
       images += m.images.length;
       codes += m.codes.length;
       bugs += m.bugs.length;
@@ -448,9 +588,9 @@ const MissionList = ({ missions, projects, onEdit, onDelete }) => {
                 <span className="flex items-center gap-1"><FileJson size={14}/> {projectNameById[m.projectId] || '未指定專案'}</span>
               </div>
             </div>
-            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
+            <div className="flex flex-wrap justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition">
               <Button variant="secondary" icon={FileText} onClick={() => onEdit(m.id)}>編輯 / 檢視</Button>
-              <Button variant="danger" icon={Trash2} onClick={() => { if(window.confirm('確定要刪除此任務嗎？')) onDelete(m.id); }} />
+              <Button variant="danger" icon={Trash2} title="刪除任務" onClick={() => { if(window.confirm('確定要刪除此任務嗎？')) onDelete(m.id); }} />
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mb-4">
@@ -470,7 +610,613 @@ const MissionList = ({ missions, projects, onEdit, onDelete }) => {
   );
 };
 
-const ProjectCenter = ({ projects, missions, selectedProjectId, onSaveProject, onDeleteProject, onCreateMission }) => {
+const ProjectReportEditor = ({ project, missions, reflectionTemplates, onSaveProject, onBack }) => {
+  const report = { ...createDefaultProjectReport(), ...(project.report || {}) };
+  const difficultyEntries = Array.isArray(report.difficultyEntries) ? report.difficultyEntries : [];
+  const resultPages = Array.isArray(report.resultPages) ? report.resultPages : [];
+  const reflection = { templateId: '', templateText: '', fields: {}, ...(report.reflection || {}) };
+  const placeholders = getTemplatePlaceholders(reflection.templateText);
+  const [isExportingPpt, setIsExportingPpt] = useState(false);
+  const [pptStatus, setPptStatus] = useState('');
+  const projectMissions = useMemo(
+    () => missions
+      .filter(mission => mission.projectId === project.id)
+      .sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0)),
+    [missions, project.id]
+  );
+  const [difficultyMissionId, setDifficultyMissionId] = useState(projectMissions[0]?.id || '');
+
+  const updateReport = (patch) => {
+    onSaveProject({
+      ...project,
+      report: {
+        ...report,
+        ...patch
+      }
+    });
+  };
+
+  const addDifficultyMission = () => {
+    const mission = projectMissions.find(item => item.id === difficultyMissionId);
+    if (!mission) return;
+    updateReport({
+      difficultyEntries: [...difficultyEntries, createDifficultyEntryFromMission(mission)]
+    });
+  };
+
+  const updateDifficultyEntry = (id, patch) => {
+    updateReport({
+      difficultyEntries: difficultyEntries.map(entry => entry.id === id ? { ...entry, ...patch } : entry)
+    });
+  };
+
+  const updateDifficultyReflection = (id, key, value) => {
+    updateReport({
+      difficultyEntries: difficultyEntries.map(entry => entry.id === id
+        ? { ...entry, dailyReflection: { ...createDefaultDailyReflection(), ...(entry.dailyReflection || {}), [key]: value } }
+        : entry)
+    });
+  };
+
+  const moveDifficultyEntry = (index, direction) => {
+    const nextIndex = direction === 'up' ? index - 1 : index + 1;
+    if (nextIndex < 0 || nextIndex >= difficultyEntries.length) return;
+    const nextEntries = [...difficultyEntries];
+    [nextEntries[index], nextEntries[nextIndex]] = [nextEntries[nextIndex], nextEntries[index]];
+    updateReport({ difficultyEntries: nextEntries });
+  };
+
+  const deleteDifficultyEntry = (id) => {
+    updateReport({ difficultyEntries: difficultyEntries.filter(entry => entry.id !== id) });
+  };
+
+  const addResultPage = (sourceMode = 'manual') => {
+    updateReport({ resultPages: [...resultPages, { ...createDefaultResultCard(), sourceMode }] });
+  };
+
+  const updateResultPage = (id, patch) => {
+    updateReport({
+      resultPages: resultPages.map(page => page.id === id ? { ...page, ...patch } : page)
+    });
+  };
+
+  const deleteResultPage = (id) => {
+    updateReport({ resultPages: resultPages.filter(page => page.id !== id) });
+  };
+
+  const moveResultPage = (index, direction) => {
+    const nextIndex = direction === 'up' ? index - 1 : index + 1;
+    if (nextIndex < 0 || nextIndex >= resultPages.length) return;
+    const nextPages = [...resultPages];
+    [nextPages[index], nextPages[nextIndex]] = [nextPages[nextIndex], nextPages[index]];
+    updateReport({ resultPages: nextPages });
+  };
+
+  const createResultSourceSnapshot = (source) => ({
+    id: source?.id || '',
+    label: source?.label || '',
+    detail: source?.detail || '',
+    dataUrl: source?.dataUrl || '',
+    url: source?.url || '',
+    code: source?.code || '',
+    language: source?.language || '',
+    title: source?.title || source?.label || ''
+  });
+
+  const summarizeSelectedSources = (card, selectedItems) => {
+    const first = selectedItems[0] || {};
+    const labels = selectedItems.map(item => item.label).filter(Boolean);
+    const details = selectedItems.map(item => item.detail).filter(Boolean);
+    const countLabel = selectedItems.length > 1 ? `${selectedItems.length} 個成果來源` : '';
+    return {
+      sourceId: first.id || '',
+      sourceIds: selectedItems.map(item => item.id).filter(Boolean),
+      sourceItems: selectedItems,
+      sourceLabel: countLabel || first.label || '',
+      sourceDetail: selectedItems.length > 1 ? details.join('\n\n') : first.detail || '',
+      sourceDataUrl: first.dataUrl || '',
+      sourceUrl: first.url || '',
+      sourceCode: first.code || '',
+      sourceLanguage: first.language || '',
+      title: card.title || first.title || first.label || ''
+    };
+  };
+
+  const selectResultSource = (card, sourceId) => {
+    const mission = projectMissions.find(item => item.id === card.missionId);
+    const source = getMissionResultOptions(mission, card.type).find(item => item.id === sourceId);
+    const selectedItems = source ? [createResultSourceSnapshot(source)] : [];
+    updateResultPage(card.id, summarizeSelectedSources(card, selectedItems));
+  };
+
+  const toggleResultSource = (card, sourceId) => {
+    const mission = projectMissions.find(item => item.id === card.missionId);
+    const sourceOptions = getMissionResultOptions(mission, card.type);
+    const source = sourceOptions.find(item => item.id === sourceId);
+    if (!source) return;
+    const currentItems = hydrateSourceItems(card, sourceOptions);
+    const currentIds = Array.isArray(card.sourceIds) && card.sourceIds.length > 0
+      ? card.sourceIds
+      : (card.sourceId ? [card.sourceId] : []);
+    const selectedItems = currentIds.includes(sourceId)
+      ? currentItems.filter(item => item.id !== sourceId)
+      : [...currentItems, createResultSourceSnapshot(source)];
+
+    updateResultPage(card.id, summarizeSelectedSources(card, selectedItems));
+  };
+
+  const resetResultSourcePatch = () => ({
+    sourceId: '',
+    sourceIds: [],
+    sourceItems: [],
+    sourceLabel: '',
+    sourceDetail: '',
+    sourceDataUrl: '',
+    sourceUrl: '',
+    sourceCode: '',
+    sourceLanguage: '',
+    attachmentName: ''
+  });
+
+  const hydrateSourceItems = (page, sourceOptions) => {
+    const ids = Array.isArray(page.sourceIds) && page.sourceIds.length > 0
+      ? page.sourceIds
+      : (page.sourceId ? [page.sourceId] : []);
+    const savedItems = Array.isArray(page.sourceItems) ? page.sourceItems : [];
+    const items = ids.map(id => {
+      const saved = savedItems.find(item => item.id === id) || {};
+      const resolved = sourceOptions.find(item => item.id === id) || {};
+      return createResultSourceSnapshot({ ...saved, ...resolved, id });
+    }).filter(item => item.id || item.label || item.dataUrl || item.code || item.url);
+
+    if (items.length > 0) return items;
+    if (page.sourceLabel || page.sourceDetail || page.sourceDataUrl || page.sourceUrl || page.sourceCode) {
+      return [createResultSourceSnapshot({
+        id: page.sourceId,
+        label: page.sourceLabel,
+        detail: page.sourceDetail,
+        dataUrl: page.sourceDataUrl,
+        url: page.sourceUrl,
+        code: page.sourceCode,
+        language: page.sourceLanguage,
+        title: page.title
+      })];
+    }
+    return [];
+  };
+
+  const hydrateResultPageSource = (page) => {
+    const mission = projectMissions.find(item => item.id === page.missionId);
+    const sourceOptions = getMissionResultOptions(mission, page.type);
+    const sourceItems = hydrateSourceItems(page, sourceOptions);
+    const summary = summarizeSelectedSources(page, sourceItems);
+    return {
+      ...page,
+      ...summary,
+      sourceItems,
+      title: page.title || summary.title
+    };
+  };
+
+  const uploadResultFile = async (card, file) => {
+    if (!file) return;
+    const dataUrl = await fileToDataUrl(file);
+    const sourceItem = createResultSourceSnapshot({
+      id: createId(),
+      label: file.name,
+      detail: card.sourceDetail,
+      dataUrl,
+      title: file.name.replace(/\.[^.]+$/, '')
+    });
+    updateResultPage(card.id, {
+      sourceId: sourceItem.id,
+      sourceIds: [sourceItem.id],
+      sourceItems: [sourceItem],
+      sourceDataUrl: dataUrl,
+      attachmentName: file.name,
+      sourceLabel: card.sourceLabel || file.name,
+      title: card.title || file.name.replace(/\.[^.]+$/, '')
+    });
+  };
+
+  const selectReflectionTemplate = (templateId) => {
+    const template = reflectionTemplates.find(item => item.id === templateId);
+    if (!template) {
+      updateReport({ reflection: { templateId: '', templateText: '', fields: {} } });
+      return;
+    }
+
+    const nextFields = {};
+    getTemplatePlaceholders(template.content).forEach(key => {
+      nextFields[key] = reflection.fields?.[key] || '';
+    });
+    updateReport({
+      reflection: {
+        templateId,
+        templateText: template.content,
+        fields: nextFields
+      }
+    });
+  };
+
+  const updateReflectionField = (key, value) => {
+    updateReport({
+      reflection: {
+        ...reflection,
+        fields: { ...(reflection.fields || {}), [key]: value }
+      }
+    });
+  };
+
+  const exportProjectPpt = async () => {
+    setIsExportingPpt(true);
+    setPptStatus('正在產生 PPT...');
+    try {
+      const { default: pptxgen } = await import('pptxgenjs');
+      const pptx = new pptxgen();
+      pptx.layout = 'LAYOUT_WIDE';
+      pptx.author = 'Poppins Learning Portfolio';
+      pptx.subject = project.name || 'Project Report';
+      pptx.title = `${project.name || 'Project'} Project Report`;
+      pptx.company = 'Poppins Learning Portfolio';
+      pptx.lang = 'zh-TW';
+      pptx.theme = {
+        headFontFace: 'Aptos Display',
+        bodyFontFace: 'Aptos'
+      };
+
+      const addSectionSlide = (title, subtitle = '') => {
+        const slide = pptx.addSlide();
+        slide.background = { color: 'F8FAFC' };
+        slide.addText(title, { x: 0.6, y: 0.55, w: 12.1, h: 0.45, fontFace: 'Aptos Display', fontSize: 22, bold: true, color: '111827', fit: 'shrink' });
+        if (subtitle) slide.addText(subtitle, { x: 0.62, y: 1.05, w: 11.8, h: 0.35, fontSize: 11, color: '64748B', fit: 'shrink' });
+        return slide;
+      };
+
+      const addBodySlide = (title, body, options = {}) => {
+        splitTextForSlides(body || '未填寫', options.maxLength || 820).forEach((chunk, index) => {
+          const slide = addSectionSlide(index === 0 ? title : `${title}（續）`, project.name || '');
+          slide.addText(chunk, { x: 0.75, y: 1.45, w: 11.75, h: 5.4, fontSize: options.fontSize || 15, color: '334155', breakLine: false, fit: 'shrink', valign: 'top' });
+        });
+      };
+
+      difficultyEntries.forEach((entry, index) => {
+        const body = [
+          `日期：${entry.date || '未填寫'}`,
+          `Mission：${entry.title || '未命名 Mission'}`,
+          '',
+          '學習內容',
+          entry.content || '未填寫',
+          '',
+          ...DAILY_REFLECTION_ITEMS.flatMap(item => [
+            item.title,
+            entry.dailyReflection?.[item.key] || '未填寫',
+            ''
+          ])
+        ].join('\n');
+        addBodySlide(`一、困難解決歷程 ${index + 1}`, body, { maxLength: 900, fontSize: 13 });
+      });
+      if (difficultyEntries.length === 0) {
+        addBodySlide('一、過程遭遇的困難及困難解決的歷程', '尚未引用 Mission。');
+      }
+
+      const getImageSize = (dataUrl) => new Promise((resolve) => {
+        const image = new Image();
+        image.onload = () => resolve({ width: image.naturalWidth || image.width, height: image.naturalHeight || image.height });
+        image.onerror = () => resolve({ width: 4, height: 3 });
+        image.src = dataUrl;
+      });
+
+      const fitImageInBox = ({ width, height }, box) => {
+        const imageRatio = width / height;
+        const boxRatio = box.w / box.h;
+        const size = imageRatio > boxRatio
+          ? { w: box.w, h: box.w / imageRatio }
+          : { w: box.h * imageRatio, h: box.h };
+        return {
+          x: box.x + (box.w - size.w) / 2,
+          y: box.y + (box.h - size.h) / 2,
+          w: size.w,
+          h: size.h
+        };
+      };
+
+      const addMediaImages = async (slide, items) => {
+        const imageItems = items.filter(item => item.dataUrl?.startsWith('data:image')).slice(0, 6);
+        if (imageItems.length === 0) return false;
+        const layouts = {
+          1: [{ x: 2.2, y: 1.35, w: 8.9, h: 3.75 }],
+          2: [{ x: 1.1, y: 1.45, w: 5.3, h: 3.35 }, { x: 6.9, y: 1.45, w: 5.3, h: 3.35 }],
+          3: [{ x: 0.85, y: 1.25, w: 3.75, h: 2.65 }, { x: 4.8, y: 1.25, w: 3.75, h: 2.65 }, { x: 8.75, y: 1.25, w: 3.75, h: 2.65 }],
+          4: [{ x: 1.1, y: 1.15, w: 5.3, h: 1.9 }, { x: 6.9, y: 1.15, w: 5.3, h: 1.9 }, { x: 1.1, y: 3.25, w: 5.3, h: 1.9 }, { x: 6.9, y: 3.25, w: 5.3, h: 1.9 }]
+        };
+        const grid = layouts[imageItems.length] || [
+          { x: 0.9, y: 1.15, w: 3.55, h: 1.75 }, { x: 4.9, y: 1.15, w: 3.55, h: 1.75 }, { x: 8.9, y: 1.15, w: 3.55, h: 1.75 },
+          { x: 0.9, y: 3.1, w: 3.55, h: 1.75 }, { x: 4.9, y: 3.1, w: 3.55, h: 1.75 }, { x: 8.9, y: 3.1, w: 3.55, h: 1.75 }
+        ];
+
+        for (const [imageIndex, item] of imageItems.entries()) {
+          const box = grid[imageIndex];
+          const imageSize = await getImageSize(item.dataUrl);
+          slide.addImage({ data: item.dataUrl, ...fitImageInBox(imageSize, box) });
+        }
+        return true;
+      };
+
+      const hydratedResultPages = resultPages.map(hydrateResultPageSource);
+      for (const page of hydratedResultPages) {
+        const slide = pptx.addSlide();
+        slide.background = { color: 'F8FAFC' };
+        const sourceItems = Array.isArray(page.sourceItems) ? page.sourceItems : [];
+        slide.addText(page.title || '未命名成果', { x: 0.75, y: 0.55, w: 11.75, h: 0.45, fontFace: 'Aptos Display', fontSize: 24, bold: true, color: '111827', fit: 'shrink' });
+        slide.addText(page.description || '未填寫成果說明', { x: 0.75, y: 5.35, w: 11.75, h: 1.15, fontSize: 13, color: '334155', fit: 'shrink', valign: 'top' });
+
+        if (isMediaResultType(page.type) && await addMediaImages(slide, sourceItems)) {
+        } else if (page.type === 'code') {
+          const codeText = page.sourceCode || page.sourceDetail || page.sourceLabel || '未填寫程式碼';
+          slide.addText(codeText.slice(0, 1800), { x: 0.75, y: 1.35, w: 11.75, h: 3.65, fontFace: 'Courier New', fontSize: 10, color: '111827', fill: { color: 'F1F5F9' }, margin: 0.08, fit: 'shrink', breakLine: false, valign: 'top' });
+        } else if (page.type === 'github') {
+          if (page.sourceUrl) {
+            slide.addText(page.sourceUrl, { x: 0.75, y: 1.35, w: 10.8, h: 0.3, fontSize: 14, color: '2563EB', hyperlink: { url: page.sourceUrl }, fit: 'shrink' });
+          }
+          slide.addText(page.sourceDetail || '', { x: 0.75, y: 1.85, w: 11.75, h: 2.8, fontSize: 13, color: '334155', fit: 'shrink', valign: 'top' });
+        } else {
+          slide.addText(page.sourceDetail || page.sourceUrl || '未填寫成果內容', { x: 0.75, y: 1.35, w: 11.75, h: 3.65, fontSize: 13, color: '334155', fit: 'shrink', valign: 'top' });
+        }
+      }
+      if (resultPages.length === 0) {
+        addBodySlide('二、成果說明', '尚未建立成果頁。');
+      }
+
+      const reflectionText = renderProjectReflectionText(reflection);
+      addBodySlide('三、學習反思與心得', reflectionText || '尚未選擇反思模板。', { maxLength: 900, fontSize: 13 });
+
+      const pptxBlob = await pptx.write({ outputType: 'blob' });
+      const fileName = `${cleanFileName(project.name)}_ProjectReport.pptx`;
+      const url = URL.createObjectURL(pptxBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setPptStatus('PPT 已產生');
+    } catch (error) {
+      console.error(error);
+      setPptStatus('PPT 匯出失敗');
+      window.alert('PPT 匯出失敗，請稍後再試。');
+    } finally {
+      setIsExportingPpt(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-blue-600">Project Report</p>
+          <h2 className="text-2xl font-bold text-slate-800">{project.name || '未命名專案'}｜專案報告</h2>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" icon={Download} disabled={isExportingPpt} onClick={exportProjectPpt}>{isExportingPpt ? '匯出中...' : '匯出 PPT'}</Button>
+          <Button variant="secondary" icon={ChevronLeft} onClick={onBack}>返回專案</Button>
+        </div>
+      </div>
+      {pptStatus && <p className="project-report-hint">{pptStatus}</p>}
+
+      <section className="project-report-section">
+        <h4><Bug size={18} /> 一、過程遭遇的困難及困難解決的歷程</h4>
+        <div className="project-report-add-row">
+          <select value={difficultyMissionId} onChange={event => setDifficultyMissionId(event.target.value)}
+            className="w-full rounded-xl border-slate-300 border p-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            <option value="">選擇要引用的 Mission</option>
+            {projectMissions.map(mission => (
+              <option key={mission.id} value={mission.id}>{mission.date}｜{mission.title || '未命名 Mission'}</option>
+            ))}
+          </select>
+          <Button variant="secondary" icon={Plus} onClick={addDifficultyMission}>引用 Mission</Button>
+        </div>
+
+        <div className="project-report-stack">
+          {difficultyEntries.map((entry, index) => (
+            <article key={entry.id} className="project-report-entry">
+              <div className="project-report-entry-actions">
+                <button type="button" title="上移" aria-label="上移" onClick={() => moveDifficultyEntry(index, 'up')}><ArrowUp size={16} /></button>
+                <button type="button" title="下移" aria-label="下移" onClick={() => moveDifficultyEntry(index, 'down')}><ArrowDown size={16} /></button>
+                <button type="button" title="刪除" aria-label="刪除" onClick={() => deleteDifficultyEntry(entry.id)}><Trash2 size={16} /></button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-[160px_1fr] gap-4">
+                <Input label="日期" type="date" value={entry.date} onChange={value => updateDifficultyEntry(entry.id, { date: value })} />
+                <Input label="Mission 標題" value={entry.title} onChange={value => updateDifficultyEntry(entry.id, { title: value })} />
+              </div>
+              <Textarea rows={4} label="學習內容" value={entry.content} onChange={value => updateDifficultyEntry(entry.id, { content: value })} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {DAILY_REFLECTION_ITEMS.map(item => (
+                  <Textarea
+                    key={item.key}
+                    rows={3}
+                    label={item.title}
+                    value={entry.dailyReflection?.[item.key] || ''}
+                    onChange={value => updateDifficultyReflection(entry.id, item.key, value)}
+                  />
+                ))}
+              </div>
+            </article>
+          ))}
+          {difficultyEntries.length === 0 && <p className="project-report-hint">尚未引用 Mission。請先選擇 Project 底下的 Mission，再手動整理困難與解決歷程。</p>}
+        </div>
+      </section>
+
+      <section className="project-report-section">
+        <h4><Star size={18} /> 二、成果說明</h4>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" icon={Plus} onClick={() => addResultPage('mission')}>從 Mission 建立</Button>
+          <Button variant="secondary" icon={Plus} onClick={() => addResultPage('manual')}>自行建立</Button>
+        </div>
+        <div className="project-report-stack">
+          {resultPages.map((card, index) => {
+            const mission = projectMissions.find(item => item.id === card.missionId);
+            const sourceOptions = getMissionResultOptions(mission, card.type);
+            const hydratedCard = hydrateResultPageSource(card);
+            const selectedSourceIds = Array.isArray(hydratedCard.sourceIds) ? hydratedCard.sourceIds : [];
+            const selectedSourceItems = Array.isArray(hydratedCard.sourceItems) ? hydratedCard.sourceItems : [];
+            const typeLabel = RESULT_TYPES.find(type => type.id === card.type)?.label || card.type;
+            return (
+              <article key={card.id} className="project-report-entry">
+                <div className="project-report-entry-actions">
+                  <span className="project-report-page-label">成果頁 {index + 1}</span>
+                  <button type="button" title="上移" aria-label="上移" onClick={() => moveResultPage(index, 'up')}><ArrowUp size={16} /></button>
+                  <button type="button" title="下移" aria-label="下移" onClick={() => moveResultPage(index, 'down')}><ArrowDown size={16} /></button>
+                  <button type="button" title="刪除" aria-label="刪除" onClick={() => deleteResultPage(card.id)}><Trash2 size={16} /></button>
+                </div>
+                <Input label="成果標題" value={card.title} onChange={value => updateResultPage(card.id, { title: value })} placeholder="例如：GitHub Repository 或 Python 爬蟲程式" />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">成果類型</label>
+                    <select value={card.type} onChange={event => updateResultPage(card.id, { type: event.target.value, ...resetResultSourcePatch() })}
+                      className="w-full rounded-xl border-slate-300 border p-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                      {RESULT_TYPES.map(type => <option key={type.id} value={type.id}>{type.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">引用 Mission</label>
+                    <select value={card.missionId} disabled={card.sourceMode !== 'mission'} onChange={event => updateResultPage(card.id, { missionId: event.target.value, ...resetResultSourcePatch() })}
+                      className="w-full rounded-xl border-slate-300 border p-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                      <option value="">選擇 Mission</option>
+                      {projectMissions.map(item => <option key={item.id} value={item.id}>{item.date}｜{item.title || '未命名 Mission'}</option>)}
+                    </select>
+                  </div>
+                  {!isMediaResultType(card.type) && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">引用的 Mission 成果</label>
+                    <select value={card.sourceId} disabled={card.sourceMode !== 'mission'} onChange={event => selectResultSource(card, event.target.value)}
+                      className="w-full rounded-xl border-slate-300 border p-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                      <option value="">選擇成果來源</option>
+                      {sourceOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+                    </select>
+                  </div>
+                  )}
+                </div>
+                {card.sourceMode === 'mission' && isMediaResultType(card.type) && (
+                  <div className="project-report-image-picker">
+                    <div className="project-report-image-picker-head">
+                      <strong>引用的 Mission 圖片</strong>
+                      <span>{selectedSourceIds.length} 張已勾選</span>
+                    </div>
+                    {sourceOptions.length > 0 ? (
+                      <div className="project-report-image-grid">
+                        {sourceOptions.map(option => {
+                          const checked = selectedSourceIds.includes(option.id);
+                          return (
+                            <label key={option.id} className={`project-report-image-choice ${checked ? 'is-selected' : ''}`}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleResultSource(card, option.id)}
+                              />
+                              <span className="project-report-image-check">{checked ? <Check size={16} /> : null}</span>
+                              {option.dataUrl?.startsWith('data:image') ? (
+                                <img src={option.dataUrl} alt={option.label || 'Mission 圖片'} />
+                              ) : (
+                                <span className="project-report-image-empty"><ImageIcon size={22} /> 無圖片資料</span>
+                              )}
+                              <span className="project-report-image-caption">{option.label || option.detail || '未命名圖片'}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="project-report-hint">這個 Mission 目前沒有可引用的圖片。</p>
+                    )}
+                  </div>
+                )}
+                {card.sourceMode === 'manual' && (
+                  <div className="project-report-manual-source">
+                    <p className="project-report-hint">自行建立：{typeLabel}</p>
+                    {isMediaResultType(card.type) && (
+                      <label className="project-report-upload">
+                        <Upload size={18} />
+                        <span>{card.attachmentName || '上傳圖片或附件'}</span>
+                        <input type="file" accept={card.type === 'attachment' ? '*' : 'image/*'} onChange={event => uploadResultFile(card, event.target.files?.[0])} />
+                      </label>
+                    )}
+                    {card.type === 'github' && (
+                      <Input label="GitHub URL" value={card.sourceUrl} onChange={value => updateResultPage(card.id, { sourceUrl: value, sourceLabel: value || card.sourceLabel })} placeholder="https://github.com/..." />
+                    )}
+                    {card.type === 'code' && (
+                      <div className="grid gap-4">
+                        <Input label="語言" value={card.sourceLanguage} onChange={value => updateResultPage(card.id, { sourceLanguage: value })} placeholder="python / cpp / javascript" />
+                        <Textarea rows={6} label="程式碼" value={card.sourceCode} onChange={value => updateResultPage(card.id, { sourceCode: value, sourceLabel: card.sourceLabel || '自行貼上的程式碼' })} placeholder="貼上程式碼..." />
+                      </div>
+                    )}
+                    {(card.type === 'note' || card.type === 'attachment') && (
+                      <Textarea rows={3} label="成果內容" value={card.sourceDetail} onChange={value => updateResultPage(card.id, { sourceDetail: value, sourceLabel: card.sourceLabel || '自行建立成果' })} placeholder="貼上筆記內容或附件說明。" />
+                    )}
+                  </div>
+                )}
+
+                {(hydratedCard.sourceLabel || hydratedCard.sourceDetail || hydratedCard.sourceUrl || hydratedCard.sourceDataUrl || hydratedCard.sourceCode) && (
+                  <div className="project-report-source">
+                    <strong>{hydratedCard.sourceLabel || hydratedCard.title || '成果內容'}</strong>
+                    {hydratedCard.sourceUrl && <p>{hydratedCard.sourceUrl}</p>}
+                    {hydratedCard.sourceDetail && <p>{hydratedCard.sourceDetail}</p>}
+                    {hydratedCard.sourceCode && <p>{hydratedCard.sourceCode.slice(0, 300)}{hydratedCard.sourceCode.length > 300 ? '...' : ''}</p>}
+                    {selectedSourceItems.some(item => item.dataUrl?.startsWith('data:image')) && (
+                      <div className="project-report-preview-grid">
+                        {selectedSourceItems.filter(item => item.dataUrl?.startsWith('data:image')).map((item, imageIndex) => (
+                          <figure key={item.id || `${card.id}-${imageIndex}`}>
+                            <img src={item.dataUrl} alt={item.label || `已選圖片 ${imageIndex + 1}`} />
+                            <figcaption>{item.label || item.detail || `圖片 ${imageIndex + 1}`}</figcaption>
+                          </figure>
+                        ))}
+                      </div>
+                    )}
+                    {hydratedCard.attachmentName && <p>{hydratedCard.attachmentName}</p>}
+                  </div>
+                )}
+                <Textarea rows={4} label="成果說明" value={card.description} onChange={value => updateResultPage(card.id, { description: value })} placeholder="一個成果，搭配一段說明文字。" />
+              </article>
+            );
+          })}
+          {resultPages.length === 0 && <p className="project-report-hint">尚未建立成果頁。成果可從 Mission 引用程式碼、GitHub、圖片或附件，也可以自行建立。</p>}
+        </div>
+      </section>
+
+      <section className="project-report-section">
+        <h4><BookOpen size={18} /> 三、學習反思與心得</h4>
+        <select value={reflection.templateId || ''} onChange={event => selectReflectionTemplate(event.target.value)}
+          className="w-full rounded-xl border-slate-300 border p-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+          <option value="">引用寫作中心的反思模板</option>
+          {reflectionTemplates.map(template => <option key={template.id} value={template.id}>{template.name}</option>)}
+        </select>
+        {reflection.templateText ? (
+          <div className="project-reflection-fill">
+            {reflection.templateText.split(/(【[^】]+】)/g).map((part, index) => {
+              if (!part.match(/^【[^】]+】$/)) {
+                return <span key={`${part}-${index}`} className="whitespace-pre-wrap">{part}</span>;
+              }
+              const label = part.slice(1, -1);
+              return (
+                <input
+                  key={`${part}-${index}`}
+                  value={reflection.fields?.[part] || ''}
+                  onChange={event => updateReflectionField(part, event.target.value)}
+                  placeholder={label}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <p className="project-report-hint">請先選擇一種完整反思模板。</p>
+        )}
+        {placeholders.length > 0 && <p className="project-report-hint">{placeholders.length} 個欄位可填寫，內容會儲存在此專案報告中。</p>}
+      </section>
+    </div>
+  );
+};
+
+const ProjectCenter = ({ projects, missions, selectedProjectId, onSaveProject, onDeleteProject, onCreateMission, onOpenProjectReport }) => {
   const [draft, setDraft] = useState(createDefaultProject);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState(null);
@@ -550,9 +1296,10 @@ const ProjectCenter = ({ projects, missions, selectedProjectId, onSaveProject, o
                   指導老師：{project.teacher || '未設定'} · 學習地點：{project.location || '未設定'}
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" icon={FileText} onClick={() => onOpenProjectReport(project.id)}>專案報告</Button>
                 <Button variant="secondary" icon={Plus} onClick={() => onCreateMission(project.id)}>新增 Mission</Button>
-                <Button variant="secondary" icon={FileText} onClick={() => setEditingProjectId(editingProjectId === project.id ? null : project.id)}>編輯</Button>
+                <Button variant="secondary" icon={Edit3} onClick={() => setEditingProjectId(editingProjectId === project.id ? null : project.id)}>編輯</Button>
                 <Button variant="danger" icon={Trash2} onClick={() => { if(window.confirm('刪除此專案後，相關 Mission 會改為未指定專案。確定刪除嗎？')) onDeleteProject(project.id); }}>刪除</Button>
               </div>
             </div>
@@ -654,10 +1401,10 @@ const MissionDetailCard = ({ mission, projects, onEdit, onDelete }) => {
         </div>
       )}
 
-      {mission.reflection?.templateText && (
+      {Object.values(mission.dailyReflection || {}).some(Boolean) && (
         <div className="border-t border-slate-100 py-6">
-          <p className="font-bold text-slate-800 mb-3">學習反思</p>
-          <ReflectionTemplateEditor reflection={mission.reflection} onChange={() => {}} readonly />
+          <p className="font-bold text-slate-800 mb-3">每日四宮格</p>
+          <DailyReflectionGrid value={mission.dailyReflection} readonly />
         </div>
       )}
 
@@ -725,6 +1472,7 @@ const MissionEdit = ({ missionId, missions, projects, availableTags, initialProj
   });
   const [previewContent, setPreviewContent] = useState(false);
   const [zoomImage, setZoomImage] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const updateField = (field, value) => setMission(prev => ({ ...prev, [field]: value }));
   const updateProject = (projectId) => {
@@ -766,12 +1514,21 @@ const MissionEdit = ({ missionId, missions, projects, availableTags, initialProj
     updateField('images', imgs);
   };
 
+  const saveMission = async () => {
+    setIsSaving(true);
+    try {
+      await onSave(mission);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="pb-20 max-w-4xl mx-auto">
       <div className="flex justify-between items-center mb-6 sticky top-0 bg-slate-50/80 backdrop-blur-md z-40 py-4 border-b border-slate-200">
         <Button variant="ghost" icon={ChevronLeft} onClick={onCancel}>返回列表</Button>
         <div className="flex gap-3">
-          <Button icon={Save} onClick={() => onSave(mission)}>儲存 Mission</Button>
+          <Button icon={Save} disabled={isSaving} onClick={saveMission}>{isSaving ? '儲存中...' : '儲存 Mission'}</Button>
         </div>
       </div>
 
@@ -788,7 +1545,7 @@ const MissionEdit = ({ missionId, missions, projects, availableTags, initialProj
           <Input label="Mission 標題" value={mission.title} onChange={v => updateField('title', v)} placeholder="例如：APCS 模擬測驗練習" />
           <Input label="日期" type="date" value={mission.date} onChange={v => updateField('date', v)} />
           <Input label="本次目標" value={mission.objective} onChange={v => updateField('objective', v)} placeholder="簡述想達成什麼" />
-          <Input label="學習時數" type="number" value={mission.hours} onChange={v => updateField('hours', v)} />
+          <Input label="學習時數" type="number" min="0" step="0.5" value={mission.hours} onChange={v => updateField('hours', v)} />
           <Input label="指導老師 (選填)" value={mission.teacher} onChange={v => updateField('teacher', v)} />
           <Input label="學習地點 (選填)" value={mission.location} onChange={v => updateField('location', v)} />
         </div>
@@ -820,10 +1577,10 @@ const MissionEdit = ({ missionId, missions, projects, availableTags, initialProj
             {mission.images.map((img, idx) => (
               <div key={img.id} className="relative group rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-white">
                 <img src={img.dataUrl} className="w-full h-40 object-cover cursor-pointer" onClick={() => setZoomImage(img.dataUrl)} alt="record" />
-                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => moveImage(idx, 'up')} className="bg-white/90 p-1.5 rounded-lg shadow hover:bg-white text-slate-700"><ArrowUp size={16}/></button>
-                  <button onClick={() => moveImage(idx, 'down')} className="bg-white/90 p-1.5 rounded-lg shadow hover:bg-white text-slate-700"><ArrowDown size={16}/></button>
-                  <button onClick={() => removeNested('images', img.id)} className="bg-red-500/90 p-1.5 rounded-lg shadow hover:bg-red-500 text-white"><Trash2 size={16}/></button>
+                <div className="absolute top-2 right-2 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                  <button type="button" title="圖片上移" aria-label="圖片上移" onClick={() => moveImage(idx, 'up')} className="bg-white/90 p-1.5 rounded-lg shadow hover:bg-white text-slate-700"><ArrowUp size={16}/></button>
+                  <button type="button" title="圖片下移" aria-label="圖片下移" onClick={() => moveImage(idx, 'down')} className="bg-white/90 p-1.5 rounded-lg shadow hover:bg-white text-slate-700"><ArrowDown size={16}/></button>
+                  <button type="button" title="刪除圖片" aria-label="刪除圖片" onClick={() => removeNested('images', img.id)} className="bg-red-500/90 p-1.5 rounded-lg shadow hover:bg-red-500 text-white"><Trash2 size={16}/></button>
                 </div>
                 <input className="w-full p-2 border-t border-slate-100 text-sm focus:outline-none bg-slate-50" 
                   placeholder="加入圖片備註..." value={img.note} onChange={e => updateNested('images', img.id, 'note', e.target.value)} />
@@ -883,10 +1640,10 @@ const MissionEdit = ({ missionId, missions, projects, availableTags, initialProj
         {mission.githubs.length === 0 && <p className="text-slate-400 text-center py-4">無 GitHub 紀錄</p>}
       </SectionCard>
 
-      <SectionCard title="學習反思" icon={BookOpen}>
-         <ReflectionTemplateEditor
-           reflection={mission.reflection}
-           onChange={reflection => setMission(prev => ({ ...prev, reflection }))}
+      <SectionCard title="每日四宮格" icon={BookOpen}>
+         <DailyReflectionGrid
+           value={mission.dailyReflection}
+           onChange={dailyReflection => setMission(prev => ({ ...prev, dailyReflection }))}
          />
       </SectionCard>
 
@@ -911,7 +1668,7 @@ const MissionEdit = ({ missionId, missions, projects, availableTags, initialProj
       <SectionCard title="設定為代表作品" icon={Star}>
          <div className="flex items-center gap-3 mb-4">
            <input type="checkbox" id="masterpiece" checked={mission.isMasterpiece} onChange={e => updateField('isMasterpiece', e.target.checked)} className="w-5 h-5 text-amber-500 rounded focus:ring-amber-500 cursor-pointer" />
-           <label htmlFor="masterpiece" className="font-bold text-slate-800 cursor-pointer">⭐ 將此 Mission 標記為代表作品</label>
+           <label htmlFor="masterpiece" className="font-bold text-slate-800 cursor-pointer">將此 Mission 標記為代表作品</label>
          </div>
          {mission.isMasterpiece && (
            <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 space-y-4">
@@ -943,8 +1700,9 @@ const EvidenceCenter = ({ missions, projects }) => {
   const allCodes = useMemo(() => missions.flatMap(m => m.codes.map(c => ({...c, mTitle: m.title, mId: m.id, projectTitle: projectNameById[m.projectId] || '未指定專案'}))), [missions, projectNameById]);
   const allBugs = useMemo(() => missions.flatMap(m => m.bugs.map(b => ({...b, mTitle: m.title, mId: m.id, projectTitle: projectNameById[m.projectId] || '未指定專案'}))), [missions, projectNameById]);
   
-  const filteredCodes = allCodes.filter(c => c.filename.includes(search) || c.description.includes(search) || c.projectTitle.includes(search));
-  const filteredBugs = allBugs.filter(b => b.name.includes(search) || b.problem.includes(search) || b.projectTitle.includes(search));
+  const filteredImages = allImages.filter(i => includesSearch(i.note, search) || includesSearch(i.mTitle, search) || includesSearch(i.projectTitle, search));
+  const filteredCodes = allCodes.filter(c => includesSearch(c.filename, search) || includesSearch(c.description, search) || includesSearch(c.projectTitle, search) || includesSearch(c.mTitle, search));
+  const filteredBugs = allBugs.filter(b => includesSearch(b.name, search) || includesSearch(b.problem, search) || includesSearch(b.solution, search) || includesSearch(b.projectTitle, search) || includesSearch(b.mTitle, search));
 
   const TabBtn = ({ tId, label, icon: Icon, count }) => (
     <button onClick={() => setTab(tId)} className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 ${tab === tId ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
@@ -969,7 +1727,7 @@ const EvidenceCenter = ({ missions, projects }) => {
       <div className="p-6 flex-1 overflow-auto bg-slate-50">
         {tab === 'images' && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {allImages.filter(i => i.note.includes(search) || i.mTitle.includes(search) || i.projectTitle.includes(search)).map(img => (
+            {filteredImages.map(img => (
               <div key={img.id} className="bg-white rounded-xl border border-slate-200 p-2 shadow-sm">
                 <img src={img.dataUrl} className="w-full h-32 object-cover rounded-lg mb-2" alt="ev" />
                 <p className="text-xs text-slate-500 truncate mb-1">專案：{img.projectTitle}</p>
@@ -977,6 +1735,7 @@ const EvidenceCenter = ({ missions, projects }) => {
                 <p className="text-sm font-medium truncate">{img.note || '無備註'}</p>
               </div>
             ))}
+            {filteredImages.length === 0 && <p className="col-span-full text-center text-slate-400 py-12">找不到符合條件的圖片紀錄。</p>}
           </div>
         )}
         {tab === 'codes' && (
@@ -995,6 +1754,7 @@ const EvidenceCenter = ({ missions, projects }) => {
                 </div>
               </div>
             ))}
+            {filteredCodes.length === 0 && <p className="text-center text-slate-400 py-12">找不到符合條件的程式碼紀錄。</p>}
           </div>
         )}
         {tab === 'bugs' && (
@@ -1009,6 +1769,7 @@ const EvidenceCenter = ({ missions, projects }) => {
                 </div>
               </div>
             ))}
+            {filteredBugs.length === 0 && <p className="md:col-span-2 text-center text-slate-400 py-12">找不到符合條件的 Bug 紀錄。</p>}
           </div>
         )}
       </div>
@@ -1016,7 +1777,7 @@ const EvidenceCenter = ({ missions, projects }) => {
   );
 };
 
-const InfoCenter = ({ missions, projects, availableTags, onAddTag, onDeleteTag, onExportJson, onImportJson, onShowPdfNotice }) => {
+const InfoCenter = ({ missions, projects, availableTags, onAddTag, onDeleteTag, onExportJson, onImportJson, onExportPdf, isExportingPdf }) => {
   const [section, setSection] = useState('evidence');
 
   const InfoTab = ({ id, label, icon: Icon }) => (
@@ -1060,11 +1821,11 @@ const InfoCenter = ({ missions, projects, availableTags, onAddTag, onDeleteTag, 
               <p className="text-sm text-slate-500">從備份檔還原資料。</p>
               <input type="file" accept=".json" className="hidden" onChange={onImportJson} />
             </label>
-            <button onClick={onShowPdfNotice}
+            <button onClick={onExportPdf} disabled={isExportingPdf}
               className="min-h-[110px] rounded-xl border border-slate-200 bg-slate-50 p-5 text-left hover:bg-white hover:shadow-sm transition">
               <FileText size={24} className="text-blue-600 mb-3" />
-              <h3 className="font-bold text-slate-800 mb-1">匯出歷程 PDF</h3>
-              <p className="text-sm text-slate-500">整理成學習歷程輸出格式。</p>
+              <h3 className="font-bold text-slate-800 mb-1">{isExportingPdf ? '產生 PDF 中' : '匯出歷程 PDF'}</h3>
+              <p className="text-sm text-slate-500">下載正式 A4 學習歷程文件。</p>
             </button>
           </div>
         </SectionCard>
@@ -1090,7 +1851,7 @@ const ProjectSidebarTree = ({ projects, missions, currentTab, selectedProjectId,
     <div className="mt-1 mb-3 space-y-1">
       {projects.map(project => {
         const projectMissions = missionsByProject[project.id] || [];
-        const activeProject = currentTab === 'projects' && selectedProjectId === project.id;
+        const activeProject = (currentTab === 'projects' || currentTab === 'projectReport') && selectedProjectId === project.id;
         return (
           <div key={project.id}>
             <button onClick={() => onSelectProject(project.id)}
@@ -1138,22 +1899,28 @@ export default function App() {
   const [missions, setMissions] = useState([]);
   const [projects, setProjects] = useState([]);
   const [availableTags, setAvailableTags] = useState(DEFAULT_AVAILABLE_TAGS);
+  const [writingTitles, setWritingTitles] = useState([]);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [currentTab, setCurrentTab] = useState('dashboard'); // dashboard, projects, missionDetail, edit, reflectionTemplates, info
+  const [currentTab, setCurrentTab] = useState('dashboard'); // dashboard, projects, projectReport, missionDetail, edit, writing, info
   const [editingId, setEditingId] = useState(null);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [initialProjectId, setInitialProjectId] = useState('');
   const [modal, setModal] = useState({ show: false, title: '', message: '' });
+  const [saveNotice, setSaveNotice] = useState('');
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const pdfRef = useRef(null);
 
   useEffect(() => {
     Promise.all([
       localforage.getItem(MISSIONS_KEY),
       localforage.getItem(PROJECTS_KEY),
-      localforage.getItem(TAGS_KEY)
-    ]).then(([storedMissions, storedProjects, storedTags]) => {
+      localforage.getItem(TAGS_KEY),
+      localforage.getItem(TITLES_KEY)
+    ]).then(([storedMissions, storedProjects, storedTags, storedTitles]) => {
       if (storedMissions) setMissions(Array.isArray(storedMissions) ? storedMissions.map(normalizeMission) : []);
       if (storedProjects) setProjects(Array.isArray(storedProjects) ? storedProjects.map(normalizeProject) : []);
       if (storedTags) setAvailableTags(Array.isArray(storedTags) && storedTags.length > 0 ? storedTags : DEFAULT_AVAILABLE_TAGS);
+      if (storedTitles) setWritingTitles(Array.isArray(storedTitles) ? storedTitles.map(normalizeWritingTitle) : []);
       setIsLoaded(true);
     }).catch(err => {
       console.error(err);
@@ -1161,20 +1928,26 @@ export default function App() {
     });
   }, []);
 
-  const saveMissions = async (newMissions) => {
-    setMissions(newMissions);
-    await localforage.setItem(MISSIONS_KEY, newMissions);
+  const persistValue = async (key, value, applyState) => {
+    try {
+      applyState(value);
+      await localforage.setItem(key, value);
+      setSaveNotice('已儲存');
+      window.setTimeout(() => setSaveNotice(''), 1800);
+    } catch (error) {
+      console.error(error);
+      setModal({ show: true, title: '儲存失敗', message: '資料無法寫入瀏覽器儲存空間，請先匯出 JSON 備份後再繼續操作。' });
+      throw error;
+    }
   };
 
-  const saveProjects = async (newProjects) => {
-    setProjects(newProjects);
-    await localforage.setItem(PROJECTS_KEY, newProjects);
-  };
+  const saveMissions = (newMissions) => persistValue(MISSIONS_KEY, newMissions, setMissions);
 
-  const saveAvailableTags = async (newTags) => {
-    setAvailableTags(newTags);
-    await localforage.setItem(TAGS_KEY, newTags);
-  };
+  const saveProjects = (newProjects) => persistValue(PROJECTS_KEY, newProjects, setProjects);
+
+  const saveAvailableTags = (newTags) => persistValue(TAGS_KEY, newTags, setAvailableTags);
+
+  const saveWritingTitles = (newTitles) => persistValue(TITLES_KEY, newTitles.map(normalizeWritingTitle), setWritingTitles);
 
   const handleSaveMission = async (mission) => {
     const isNew = !missions.some(m => m.id === mission.id);
@@ -1216,6 +1989,13 @@ export default function App() {
     setCurrentTab('edit');
   };
 
+  const handleOpenProjectReport = (projectId) => {
+    setSelectedProjectId(projectId);
+    setEditingId(null);
+    setInitialProjectId('');
+    setCurrentTab('projectReport');
+  };
+
   const handleSelectProject = (projectId) => {
     setSelectedProjectId(projectId);
     setEditingId(null);
@@ -1251,14 +2031,51 @@ export default function App() {
     })));
   };
 
+  const handleSaveWritingTitle = async (title) => {
+    await saveWritingTitles([normalizeWritingTitle(title), ...writingTitles]);
+  };
+
+  const handleUpdateWritingTitle = async (id, title) => {
+    await saveWritingTitles(writingTitles.map(item => item.id === id ? { ...item, title } : item));
+  };
+
+  const handleDeleteWritingTitle = async (id) => {
+    if (!window.confirm('確定要刪除此標題嗎？')) return;
+    await saveWritingTitles(writingTitles.filter(item => item.id !== id));
+  };
+
+  const handleToggleWritingTitleFavorite = async (id) => {
+    await saveWritingTitles(writingTitles.map(item => item.id === id ? { ...item, favorite: !item.favorite } : item));
+  };
+
+  const handleCopyWritingTitle = async (title) => {
+    try {
+      await navigator.clipboard.writeText(title);
+      setSaveNotice('已複製標題');
+      window.setTimeout(() => setSaveNotice(''), 1800);
+    } catch (error) {
+      console.error(error);
+      setModal({ show: true, title: '複製失敗', message: '無法使用剪貼簿，請手動選取標題複製。' });
+    }
+  };
+
   const handleExportJson = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ missions, projects, availableTags }));
+    const backup = {
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      missions,
+      projects,
+      availableTags
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
     const dlAnchorNode = document.createElement('a');
-    dlAnchorNode.setAttribute("href", dataStr);
+    dlAnchorNode.setAttribute("href", url);
     dlAnchorNode.setAttribute("download", `poppins_backup_${new Date().toISOString().split('T')[0]}.json`);
     document.body.appendChild(dlAnchorNode);
     dlAnchorNode.click();
     dlAnchorNode.remove();
+    URL.revokeObjectURL(url);
   };
 
   const handleImportJson = (e) => {
@@ -1285,8 +2102,48 @@ export default function App() {
     e.target.value = null; // reset input
   };
 
-  const handleShowPdfNotice = () => {
-    setModal({ show: true, title: '匯出 PDF', message: 'PDF 匯出版面正在設計中，將於下一版完整推出！目前的資料都已安全儲存在本機。' });
+  const handleExportPdf = async () => {
+    if (!pdfRef.current || isExportingPdf) return;
+    setIsExportingPdf(true);
+    const today = new Date();
+    const filenameDate = today.toISOString().slice(0, 10).replaceAll('-', '');
+
+    try {
+      const { default: html2pdf } = await import('html2pdf.js');
+      const worker = html2pdf()
+        .set({
+          margin: [16, 16, 16, 16],
+          filename: `LearningPortfolio_${filenameDate}.pdf`,
+          image: { type: 'jpeg', quality: 0.96 },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            letterRendering: true
+          },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak: { mode: ['css', 'legacy'], avoid: ['.pdf-avoid', 'img', 'figure'] }
+        })
+        .from(pdfRef.current)
+        .toPdf();
+
+      await worker.get('pdf').then((pdf) => {
+        const totalPages = pdf.internal.getNumberOfPages();
+        pdf.setFontSize(9);
+        pdf.setTextColor(100);
+        for (let page = 1; page <= totalPages; page += 1) {
+          pdf.setPage(page);
+          pdf.text('Poppins Learning Portfolio', 16, 287);
+          pdf.text(`Page ${page} / ${totalPages}`, 181, 287, { align: 'right' });
+        }
+      }).save();
+    } catch (error) {
+      console.error(error);
+      setModal({ show: true, title: 'PDF 匯出失敗', message: '產生 PDF 時發生問題，請先確認瀏覽器儲存空間與圖片資料是否完整後再試一次。' });
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   if (!isLoaded) return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-blue-600 font-bold animate-pulse">載入中...</div>;
@@ -1320,7 +2177,7 @@ export default function App() {
             onSelectProject={handleSelectProject}
             onSelectMission={handleSelectMission}
           />
-          <NavItem tab="reflectionTemplates" icon={BookOpen} label="學習反思模版" onClick={() => { setSelectedProjectId(''); setCurrentTab('reflectionTemplates'); }} />
+          <NavItem tab="writing" icon={PenLine} label="寫作中心" onClick={() => { setSelectedProjectId(''); setCurrentTab('writing'); }} />
           <NavItem tab="info" icon={Database} label="資訊中心" onClick={() => { setSelectedProjectId(''); setCurrentTab('info'); }} />
         </nav>
       </aside>
@@ -1338,6 +2195,11 @@ export default function App() {
 
         <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 relative">
           <div className="max-w-6xl mx-auto">
+            {saveNotice && (
+              <div className="fixed right-4 top-4 z-50 rounded-xl border border-emerald-100 bg-white px-4 py-2 text-sm font-bold text-emerald-700 shadow-card">
+                {saveNotice}
+              </div>
+            )}
             {currentTab === 'dashboard' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
@@ -1360,8 +2222,19 @@ export default function App() {
                   onSaveProject={handleSaveProject}
                   onDeleteProject={handleDeleteProject}
                   onCreateMission={handleCreateMissionForProject}
+                  onOpenProjectReport={handleOpenProjectReport}
                 />
               </div>
+            )}
+
+            {currentTab === 'projectReport' && (
+              <ProjectReportEditor
+                project={selectedProject || createDefaultProject()}
+                missions={missions}
+                reflectionTemplates={REFLECTION_TEMPLATES}
+                onSaveProject={handleSaveProject}
+                onBack={() => setCurrentTab('projects')}
+              />
             )}
             
             {currentTab === 'missionDetail' && (
@@ -1408,15 +2281,24 @@ export default function App() {
                   onDeleteTag={handleDeleteTag}
                   onExportJson={handleExportJson}
                   onImportJson={handleImportJson}
-                  onShowPdfNotice={handleShowPdfNotice}
+                  onExportPdf={handleExportPdf}
+                  isExportingPdf={isExportingPdf}
                 />
               </div>
             )}
 
-            {currentTab === 'reflectionTemplates' && (
+            {currentTab === 'writing' && (
               <div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2"><BookOpen size={24}/> 學習反思模版</h2>
-                <ReflectionTemplateCenter />
+                <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2"><PenLine size={24}/> 學習歷程寫作中心</h2>
+                <WritingCenter
+                  savedTitles={writingTitles}
+                  onSaveTitle={handleSaveWritingTitle}
+                  onUpdateTitle={handleUpdateWritingTitle}
+                  onDeleteTitle={handleDeleteWritingTitle}
+                  onToggleFavorite={handleToggleWritingTitleFavorite}
+                  onCopyTitle={handleCopyWritingTitle}
+                  reflectionTemplates={REFLECTION_TEMPLATES}
+                />
               </div>
             )}
           </div>
@@ -1430,8 +2312,8 @@ export default function App() {
           <button onClick={() => setCurrentTab('projects')} className={`p-3 rounded-xl flex flex-col items-center gap-1 ${currentTab === 'projects' ? 'text-blue-600' : 'text-slate-500'}`}>
             <FileJson size={20} /><span className="text-[10px] font-bold">專案</span>
           </button>
-          <button onClick={() => setCurrentTab('reflectionTemplates')} className={`p-3 rounded-xl flex flex-col items-center gap-1 ${currentTab === 'reflectionTemplates' ? 'text-blue-600' : 'text-slate-500'}`}>
-            <BookOpen size={20} /><span className="text-[10px] font-bold">反思</span>
+          <button onClick={() => setCurrentTab('writing')} className={`p-3 rounded-xl flex flex-col items-center gap-1 ${currentTab === 'writing' ? 'text-blue-600' : 'text-slate-500'}`}>
+            <PenLine size={20} /><span className="text-[10px] font-bold">寫作</span>
           </button>
           <button onClick={() => setCurrentTab('info')} className={`p-3 rounded-xl flex flex-col items-center gap-1 ${currentTab === 'info' ? 'text-blue-600' : 'text-slate-500'}`}>
             <Database size={20} /><span className="text-[10px] font-bold">資訊</span>
@@ -1446,6 +2328,10 @@ export default function App() {
           <Button onClick={() => setModal({ show: false, title: '', message: '' })}>確定</Button>
         </div>
       </Modal>
+
+      <div className="pdf-render-host" aria-hidden="true">
+        <LearningPortfolioPDF ref={pdfRef} missions={missions} projects={projects} generatedAt={new Date()} />
+      </div>
     </div>
   );
 }
