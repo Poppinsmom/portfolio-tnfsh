@@ -6,11 +6,13 @@ import {
   Home, BookOpen, Database, Settings, Plus, Trash2, Upload, Download, 
   Search, Check, X, Image as ImageIcon, Code, Bug, Github, Star, Tag, 
   Save, ChevronLeft, Calendar, Target, CheckCircle, Clock, MapPin, User, Edit3,
-  ArrowUp, ArrowDown, Maximize2, FileText, LayoutDashboard, FileJson, PenLine
+  ArrowUp, ArrowDown, Maximize2, FileText, LayoutDashboard, FileJson, PenLine,
+  ChevronDown, ChevronRight
 } from 'lucide-react';
 import LearningPortfolioPDF from './components/pdf/LearningPortfolioPDF';
 import WritingCenter from './components/writing/WritingCenter';
 import heroImage from './assets/learning-portfolio-hero.png';
+import { PPT_BACKGROUNDS } from './data/pptBackgrounds';
 import './styles.css';
 
 const DEFAULT_AVAILABLE_TAGS = [
@@ -109,6 +111,8 @@ const createDefaultProjectReport = () => ({
   titleId: '',
   title: '',
   subtitle: '',
+  pptBackgroundDataUrl: '',
+  pptBackgroundName: '',
   motivation: '',
   strategy: '',
   expected: '',
@@ -936,6 +940,22 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
     });
   };
 
+  const uploadPptBackground = async (file) => {
+    if (!file) return;
+    const dataUrl = await fileToDataUrl(file);
+    updateReport({
+      pptBackgroundDataUrl: dataUrl,
+      pptBackgroundName: file.name
+    });
+  };
+
+  const selectBuiltInPptBackground = (background) => {
+    updateReport({
+      pptBackgroundDataUrl: background.dataUrl,
+      pptBackgroundName: background.name
+    });
+  };
+
   const exportProjectPpt = async () => {
     setIsExportingPpt(true);
     setPptStatus('正在產生 PPT...');
@@ -956,10 +976,18 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
       const reportDate = [project.startDate, project.endDate].filter(Boolean).join(' - ') || new Date().toISOString().slice(0, 10);
       const headerTitle = reportTitle || 'Project Report';
       const headerSubtitle = reportSubtitle || '';
+      const hasPptBackground = report.pptBackgroundDataUrl?.startsWith('data:image');
+
+      const applySlideBackground = (slide, fallbackColor = 'F8FAFC') => {
+        slide.background = { color: fallbackColor };
+        if (hasPptBackground) {
+          slide.addImage({ data: report.pptBackgroundDataUrl, x: 0, y: 0, w: 13.333, h: 7.5 });
+        }
+      };
 
       const addCoverSlide = () => {
         const slide = pptx.addSlide();
-        slide.background = { color: 'FFF8EC' };
+        applySlideBackground(slide, 'FFF8EC');
         slide.addText(headerTitle, { x: 0.8, y: 1.0, w: 11.7, h: 0.9, fontFace: 'Aptos Display', fontSize: 30, bold: true, color: '173763', fit: 'shrink' });
         if (headerSubtitle) {
           slide.addText(headerSubtitle, { x: 0.82, y: 2.0, w: 11.4, h: 0.45, fontSize: 18, bold: true, color: '43A7DD', fit: 'shrink' });
@@ -1014,7 +1042,7 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
 
       const addSectionSlide = (title) => {
         const slide = pptx.addSlide();
-        slide.background = { color: 'F8FAFC' };
+        applySlideBackground(slide);
         addSlideHeader(slide, title);
         return slide;
       };
@@ -1103,7 +1131,7 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
       const hydratedResultPages = resultPages.map(hydrateResultPageSource);
       for (const page of hydratedResultPages) {
         const slide = pptx.addSlide();
-        slide.background = { color: 'F8FAFC' };
+        applySlideBackground(slide);
         const sourceItems = Array.isArray(page.sourceItems) ? page.sourceItems : [];
         addSlideHeader(slide, page.title || '未命名成果');
         slide.addText(page.description || '未填寫成果說明', { x: 0.75, y: 5.35, w: 11.75, h: 1.15, fontSize: 13, color: '334155', fit: 'shrink', valign: 'top' });
@@ -1162,6 +1190,48 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
         </div>
       </div>
       {pptStatus && <p className="project-report-hint">{pptStatus}</p>}
+
+      <section className="project-report-section">
+        <h4><ImageIcon size={18} /> PPT 背景圖</h4>
+        <div className="project-report-background-row">
+          <label className="project-report-upload">
+            <Upload size={18} />
+            <span>{report.pptBackgroundName || '上傳 PPT 背景圖'}</span>
+            <input type="file" accept="image/*" onChange={event => uploadPptBackground(event.target.files?.[0])} />
+          </label>
+          {report.pptBackgroundDataUrl && (
+            <Button
+              variant="secondary"
+              icon={X}
+              onClick={() => updateReport({ pptBackgroundDataUrl: '', pptBackgroundName: '' })}
+            >
+              移除背景
+            </Button>
+          )}
+        </div>
+        {report.pptBackgroundDataUrl?.startsWith('data:image') && (
+          <div className="project-report-background-preview">
+            <img src={report.pptBackgroundDataUrl} alt="PPT 背景預覽" />
+            <p>匯出 PPT 時會套用到每一頁，文字、圖片與程式碼仍可編輯。</p>
+          </div>
+        )}
+        <div className="ppt-background-library compact">
+          {PPT_BACKGROUNDS.map(background => {
+            const selected = report.pptBackgroundDataUrl === background.dataUrl;
+            return (
+              <button
+                key={background.id}
+                type="button"
+                onClick={() => selectBuiltInPptBackground(background)}
+                className={`ppt-background-card ${selected ? 'is-selected' : ''}`}
+              >
+                <img src={background.dataUrl} alt={background.name} />
+                <h3>{background.name}</h3>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       <section className="project-report-section">
         <h4><Tag size={18} /> 專案標題</h4>
@@ -2097,6 +2167,7 @@ const InfoCenter = ({ missions, projects, availableTags, onAddTag, onDeleteTag, 
 };
 
 const ProjectSidebarTree = ({ projects, missions, currentTab, selectedProjectId, editingId, onSelectProject, onSelectMission }) => {
+  const [openProjectIds, setOpenProjectIds] = useState(() => new Set(selectedProjectId ? [selectedProjectId] : []));
   const missionsByProject = useMemo(() => {
     const groups = {};
     missions.forEach(mission => {
@@ -2108,18 +2179,44 @@ const ProjectSidebarTree = ({ projects, missions, currentTab, selectedProjectId,
   }, [missions]);
 
   const unassignedMissions = missionsByProject.unassigned || [];
+  const selectedMission = missions.find(mission => mission.id === editingId);
+
+  useEffect(() => {
+    const projectIdToOpen = selectedProjectId || selectedMission?.projectId || '';
+    if (!projectIdToOpen) return;
+    setOpenProjectIds(prev => {
+      if (prev.has(projectIdToOpen)) return prev;
+      const next = new Set(prev);
+      next.add(projectIdToOpen);
+      return next;
+    });
+  }, [selectedProjectId, selectedMission?.projectId]);
+
+  const toggleProject = (projectId) => {
+    setOpenProjectIds(prev => {
+      const next = new Set(prev);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
+  };
 
   return (
     <div className="mt-1 mb-3 space-y-1">
       {projects.map(project => {
         const projectMissions = missionsByProject[project.id] || [];
         const activeProject = (currentTab === 'projects' || currentTab === 'projectReport') && selectedProjectId === project.id;
+        const isOpen = openProjectIds.has(project.id);
+        const ToggleIcon = isOpen ? ChevronDown : ChevronRight;
         return (
           <div key={project.id}>
-            <button onClick={() => onSelectProject(project.id)}
-              className={`w-full text-left px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${activeProject ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
+            <button onClick={() => { toggleProject(project.id); onSelectProject(project.id); }}
+              className={`w-full text-left px-4 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 ${activeProject ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+              aria-expanded={isOpen}>
+              <ToggleIcon size={15} className="shrink-0" />
               <span className="block truncate">{project.name || '未命名專案'}</span>
             </button>
+            {isOpen && (
             <div className="ml-5 border-l border-slate-100 pl-3 space-y-1">
               {projectMissions.map(mission => {
                 const activeMission = (currentTab === 'missionDetail' || currentTab === 'edit') && editingId === mission.id;
@@ -2130,16 +2227,26 @@ const ProjectSidebarTree = ({ projects, missions, currentTab, selectedProjectId,
                   </button>
                 );
               })}
+              {projectMissions.length === 0 && <p className="px-3 py-1.5 text-xs text-slate-400">尚無 Mission</p>}
             </div>
+            )}
           </div>
         );
       })}
       {unassignedMissions.length > 0 && (
         <div>
-          <button onClick={() => onSelectProject('')}
-            className={`w-full text-left px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${currentTab === 'projects' && !selectedProjectId ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
+          {(() => {
+            const isOpen = openProjectIds.has('unassigned');
+            const ToggleIcon = isOpen ? ChevronDown : ChevronRight;
+            return (
+          <>
+          <button onClick={() => { toggleProject('unassigned'); onSelectProject(''); }}
+            className={`w-full text-left px-4 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 ${currentTab === 'projects' && !selectedProjectId ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+            aria-expanded={isOpen}>
+            <ToggleIcon size={15} className="shrink-0" />
             <span className="block truncate">未指定專案</span>
           </button>
+          {isOpen && (
           <div className="ml-5 border-l border-slate-100 pl-3 space-y-1">
             {unassignedMissions.map(mission => {
               const activeMission = (currentTab === 'missionDetail' || currentTab === 'edit') && editingId === mission.id;
@@ -2151,6 +2258,10 @@ const ProjectSidebarTree = ({ projects, missions, currentTab, selectedProjectId,
               );
             })}
           </div>
+          )}
+          </>
+            );
+          })()}
         </div>
       )}
     </div>

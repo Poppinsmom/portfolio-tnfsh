@@ -823,6 +823,54 @@ button:disabled {
   white-space: pre-wrap;
 }
 
+.ppt-background-library {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.ppt-background-library.compact {
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  margin-top: 14px;
+}
+
+.ppt-background-card {
+  display: grid;
+  gap: 8px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 10px;
+  text-align: left;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.ppt-background-card:hover,
+.ppt-background-card.is-selected {
+  border-color: #58b5e6;
+  box-shadow: 0 12px 28px rgba(67, 167, 221, 0.16);
+  transform: translateY(-1px);
+}
+
+.ppt-background-card.is-selected {
+  outline: 3px solid rgba(88, 181, 230, 0.18);
+}
+
+.ppt-background-card img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #fff8ec;
+}
+
+.ppt-background-card h3 {
+  margin: 0;
+  color: #173763;
+  font-size: 13px;
+  font-weight: 850;
+}
+
 .project-report-editor {
   display: grid;
   gap: 14px;
@@ -1147,6 +1195,39 @@ button:disabled {
 
 .project-report-upload input {
   display: none;
+}
+
+.project-report-background-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.project-report-background-preview {
+  display: grid;
+  grid-template-columns: minmax(180px, 280px) minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  border-radius: 14px;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  padding: 12px;
+}
+
+.project-report-background-preview img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #ffffff;
+}
+
+.project-report-background-preview p {
+  margin: 0;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.65;
 }
 
 .daily-reflection-card {

@@ -1,8 +1,9 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
-  BookOpen, Bot, Clipboard, Copy, Edit3, FileText, Package, Plus, Save, Sparkles,
+  BookOpen, Bot, Clipboard, Copy, Edit3, FileText, Image, Package, Plus, Save, Sparkles,
   Star, Tag, Trash2, X
 } from 'lucide-react';
+import { PPT_BACKGROUNDS } from '../../data/pptBackgrounds';
 
 const TITLE_TEMPLATES = [
   {
@@ -277,6 +278,26 @@ const TitleCenter = ({ savedTitles, onSaveTitle, onUpdateTitle, onDeleteTitle, o
   );
 };
 
+const PptBackgroundCenter = () => (
+  <section className="writing-panel">
+    <div className="writing-panel-header">
+      <div>
+        <p className="writing-eyebrow">PPT Backgrounds</p>
+        <h2>PPT 背景</h2>
+      </div>
+      <p>{PPT_BACKGROUNDS.length} 張內建背景，可在 Project Report 匯出 PPT 時套用。</p>
+    </div>
+    <div className="ppt-background-library">
+      {PPT_BACKGROUNDS.map(background => (
+        <article key={background.id} className="ppt-background-card">
+          <img src={background.dataUrl} alt={background.name} />
+          <h3>{background.name}</h3>
+        </article>
+      ))}
+    </div>
+  </section>
+);
+
 export default function WritingCenter({
   savedTitles,
   onSaveTitle,
@@ -333,6 +354,17 @@ export default function WritingCenter({
     );
   }
 
+  if (section === 'pptBackgrounds') {
+    return (
+      <div className="space-y-6">
+        <button type="button" onClick={() => setSection('home')} className="secondary-btn">
+          <X size={16} /> 返回寫作中心
+        </button>
+        <PptBackgroundCenter />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <section className="writing-hero">
@@ -358,6 +390,13 @@ export default function WritingCenter({
           description="查看 Mission 可引用的反思寫作模板。"
           enabled
           onClick={() => setSection('reflectionTemplates')}
+        />
+        <ToolCard
+          icon={Image}
+          title="PPT 背景"
+          description="挑選適合學習歷程報告的簡報背景。"
+          enabled
+          onClick={() => setSection('pptBackgrounds')}
         />
         <ToolCard
           icon={FileText}
