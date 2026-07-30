@@ -942,6 +942,27 @@ button:disabled {
   color: #2563eb;
 }
 
+.project-report-entry-subtitle {
+  margin: 4px 0 0;
+  color: #173763;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.project-report-bug-list {
+  display: grid;
+  gap: 12px;
+}
+
+.project-report-bug-card {
+  display: grid;
+  gap: 12px;
+  border-radius: 12px;
+  border: 1px solid #fee2e2;
+  background: #fff7f5;
+  padding: 12px;
+}
+
 .project-report-source {
   border-radius: 12px;
   border: 1px solid #dbeafe;
@@ -984,6 +1005,13 @@ button:disabled {
   font-size: clamp(20px, 3vw, 30px);
   font-weight: 950;
   line-height: 1.35;
+}
+
+.project-report-title-preview p {
+  margin: 10px 0 0;
+  color: #64748b;
+  font-size: 16px;
+  font-weight: 800;
 }
 
 .project-report-image-picker {

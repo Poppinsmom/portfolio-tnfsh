@@ -108,10 +108,18 @@ const createDefaultDailyReflection = () => ({
 const createDefaultProjectReport = () => ({
   titleId: '',
   title: '',
+  subtitle: '',
+  motivation: '',
+  strategy: '',
+  expected: '',
   difficultyEntries: [],
   resultPages: [],
-  reflection: { templateId: '', templateText: '', fields: {} }
+  reflection: { templateId: '', templateText: '', fields: {} },
+  futurePlan: ''
 });
+
+const DEFAULT_PROJECT_STRATEGY = '透過Coursera線上學習平台，在每周星期五2節自主學習課和假日空閒時間裡觀看所選課程的上課影片，並完成各單元課程之線上測驗及利用課餘時間進行寫程式的練習。';
+const DEFAULT_PROJECT_FUTURE_PLAN = '寫出你打算如何修正錯誤。\n\n時間管理優化：說明如何重新分配時間。\n\n尋求資源協助：列出你準備向誰或哪裡找答案。\n\n2. 未來學習計畫（與科系連結）\n\n自主學習規劃：預計閱讀哪些專書或修習線上課程。\n\n證照或檢定：具體列出預計考取的目標。\n\n學系課程對接：說明這段經驗如何連結到大學的某個課程。';
 
 const RESULT_TYPES = [
   { id: 'note', label: '📖 學習筆記' },
@@ -197,6 +205,8 @@ const createDefaultMission = () => ({
 const createDefaultProject = () => ({
   id: Date.now().toString(),
   name: '',
+  studentName: '沈立紀',
+  school: '台南一中',
   startDate: '',
   endDate: '',
   teacher: '',
@@ -225,6 +235,8 @@ const normalizeMission = (mission) => {
 const normalizeProject = (project) => ({
   ...createDefaultProject(),
   ...project,
+  studentName: project.studentName ?? '沈立紀',
+  school: project.school ?? '台南一中',
   teacher: project.teacher || '',
   location: project.location || '',
   report: {
@@ -261,7 +273,15 @@ const createDifficultyEntryFromMission = (mission) => ({
   dailyReflection: {
     ...createDefaultDailyReflection(),
     ...(mission.dailyReflection || {})
-  }
+  },
+  bugs: (mission.bugs || []).map(bug => ({
+    id: bug.id || createId(),
+    name: bug.name || '',
+    problem: bug.problem || '',
+    cause: bug.cause || '',
+    solution: bug.solution || '',
+    lesson: bug.lesson || ''
+  }))
 });
 
 const createDefaultResultCard = () => ({
@@ -626,6 +646,11 @@ const MissionList = ({ missions, projects, onEdit, onDelete }) => {
 const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTitles = [], onSaveProject, onBack }) => {
   const report = { ...createDefaultProjectReport(), ...(project.report || {}) };
   const reportTitle = report.title || '';
+  const reportSubtitle = report.subtitle || '';
+  const reportMotivation = report.motivation || project.goal || '';
+  const reportStrategy = report.strategy || DEFAULT_PROJECT_STRATEGY;
+  const reportExpected = report.expected || project.content || '';
+  const reportFuturePlan = report.futurePlan || DEFAULT_PROJECT_FUTURE_PLAN;
   const difficultyEntries = Array.isArray(report.difficultyEntries) ? report.difficultyEntries : [];
   const resultPages = Array.isArray(report.resultPages) ? report.resultPages : [];
   const reflection = { templateId: '', templateText: '', fields: {}, ...(report.reflection || {}) };
@@ -686,6 +711,43 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
 
   const deleteDifficultyEntry = (id) => {
     updateReport({ difficultyEntries: difficultyEntries.filter(entry => entry.id !== id) });
+  };
+
+  const hydrateDifficultyEntry = (entry) => {
+    const mission = projectMissions.find(item => item.id === entry.missionId);
+    return {
+      ...entry,
+      date: entry.date || mission?.date || '',
+      title: entry.title || mission?.title || '未命名 Mission',
+      dailyReflection: {
+        ...createDefaultDailyReflection(),
+        ...(mission?.dailyReflection || {}),
+        ...(entry.dailyReflection || {})
+      },
+      bugs: Array.isArray(entry.bugs) && entry.bugs.length > 0
+        ? entry.bugs.map((bug, bugIndex) => ({ ...bug, id: bug.id || `${entry.id}-${bugIndex}` }))
+        : (mission?.bugs || []).map(bug => ({
+          id: bug.id || createId(),
+          name: bug.name || '',
+          problem: bug.problem || '',
+          cause: bug.cause || '',
+          solution: bug.solution || '',
+          lesson: bug.lesson || ''
+        }))
+    };
+  };
+
+  const updateDifficultyBug = (entryId, bugId, field, value) => {
+    updateReport({
+      difficultyEntries: difficultyEntries.map(entry => {
+        if (entry.id !== entryId) return entry;
+        const hydratedEntry = hydrateDifficultyEntry(entry);
+        return {
+          ...hydratedEntry,
+          bugs: hydratedEntry.bugs.map(bug => bug.id === bugId ? { ...bug, [field]: value } : bug)
+        };
+      })
+    });
   };
 
   const selectReportTitle = (titleId) => {
@@ -882,8 +944,8 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
       const pptx = new pptxgen();
       pptx.layout = 'LAYOUT_WIDE';
       pptx.author = 'Poppins Learning Portfolio';
-      pptx.subject = project.name || 'Project Report';
-      pptx.title = reportTitle || `${project.name || 'Project'} Project Report`;
+      pptx.subject = reportTitle || 'Project Report';
+      pptx.title = reportTitle || 'Project Report';
       pptx.company = 'Poppins Learning Portfolio';
       pptx.lang = 'zh-TW';
       pptx.theme = {
@@ -891,39 +953,108 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
         bodyFontFace: 'Aptos'
       };
 
-      const addSectionSlide = (title, subtitle = '') => {
+      const reportDate = [project.startDate, project.endDate].filter(Boolean).join(' - ') || new Date().toISOString().slice(0, 10);
+      const headerTitle = reportTitle || 'Project Report';
+      const headerSubtitle = reportSubtitle || '';
+
+      const addCoverSlide = () => {
+        const slide = pptx.addSlide();
+        slide.background = { color: 'FFF8EC' };
+        slide.addText(headerTitle, { x: 0.8, y: 1.0, w: 11.7, h: 0.9, fontFace: 'Aptos Display', fontSize: 30, bold: true, color: '173763', fit: 'shrink' });
+        if (headerSubtitle) {
+          slide.addText(headerSubtitle, { x: 0.82, y: 2.0, w: 11.4, h: 0.45, fontSize: 18, bold: true, color: '43A7DD', fit: 'shrink' });
+        }
+        slide.addText([
+          `學生姓名：${project.studentName || '未填寫'}`,
+          `學校：${project.school || '未填寫'}`,
+          `指導老師：${project.teacher || '未填寫'}`,
+          `日期：${reportDate || '未填寫'}`
+        ].join('\n'), { x: 0.85, y: 3.15, w: 6.6, h: 1.55, fontSize: 15, color: '334155', breakLine: false, fit: 'shrink' });
+        slide.addShape(pptx.ShapeType.line, { x: 0.85, y: 2.72, w: 3.9, h: 0, line: { color: 'FF6B5B', width: 3 } });
+      };
+
+      addCoverSlide();
+
+      const addSlideHeader = (slide, sectionTitle) => {
+        slide.addText(headerTitle, {
+          x: 0.6,
+          y: 0.36,
+          w: 12.1,
+          h: 0.3,
+          fontFace: 'Aptos Display',
+          fontSize: 14,
+          bold: true,
+          color: '64748B',
+          fit: 'shrink'
+        });
+        if (headerSubtitle) {
+          slide.addText(headerSubtitle, {
+            x: 0.6,
+            y: 0.72,
+            w: 12.1,
+            h: 0.28,
+            fontSize: 12,
+            bold: true,
+            color: '64748B',
+            fit: 'shrink'
+          });
+        }
+        slide.addText(sectionTitle, {
+          x: 0.6,
+          y: headerSubtitle ? 1.22 : 0.92,
+          w: 12.1,
+          h: 0.48,
+          fontFace: 'Aptos Display',
+          fontSize: 24,
+          bold: true,
+          color: '111827',
+          fit: 'shrink'
+        });
+      };
+
+      const addSectionSlide = (title) => {
         const slide = pptx.addSlide();
         slide.background = { color: 'F8FAFC' };
-        slide.addText(title, { x: 0.6, y: 0.55, w: 12.1, h: 0.45, fontFace: 'Aptos Display', fontSize: 22, bold: true, color: '111827', fit: 'shrink' });
-        if (subtitle) slide.addText(subtitle, { x: 0.62, y: 1.05, w: 11.8, h: 0.35, fontSize: 11, color: '64748B', fit: 'shrink' });
+        addSlideHeader(slide, title);
         return slide;
       };
 
       const addBodySlide = (title, body, options = {}) => {
         splitTextForSlides(body || '未填寫', options.maxLength || 820).forEach((chunk, index) => {
-          const slide = addSectionSlide(index === 0 ? title : `${title}（續）`, reportTitle || project.name || '');
-          slide.addText(chunk, { x: 0.75, y: 1.45, w: 11.75, h: 5.4, fontSize: options.fontSize || 15, color: '334155', breakLine: false, fit: 'shrink', valign: 'top' });
+          const slide = addSectionSlide(index === 0 ? title : `${title}（續）`);
+          slide.addText(chunk, { x: 0.75, y: headerSubtitle ? 1.92 : 1.62, w: 11.75, h: headerSubtitle ? 4.9 : 5.2, fontSize: options.fontSize || 15, color: '334155', breakLine: false, fit: 'shrink', valign: 'top' });
         });
       };
 
-      difficultyEntries.forEach((entry, index) => {
+      addBodySlide('學習動機', reportMotivation || '未填寫', { maxLength: 900, fontSize: 14 });
+      addBodySlide('實施策略', reportStrategy || '未填寫', { maxLength: 900, fontSize: 14 });
+      addBodySlide('計畫預期', reportExpected || '未填寫', { maxLength: 900, fontSize: 14 });
+
+      difficultyEntries.map(hydrateDifficultyEntry).forEach((entry, index) => {
         const body = [
           `日期：${entry.date || '未填寫'}`,
           `Mission：${entry.title || '未命名 Mission'}`,
           '',
-          '學習內容',
-          entry.content || '未填寫',
-          '',
+          '每日四宮格',
           ...DAILY_REFLECTION_ITEMS.flatMap(item => [
             item.title,
             entry.dailyReflection?.[item.key] || '未填寫',
             ''
-          ])
+          ]),
+          'Bug 排除紀錄',
+          ...(entry.bugs?.length ? entry.bugs.flatMap((bug, bugIndex) => [
+            `Bug ${bugIndex + 1}：${bug.name || '未命名 Bug'}`,
+            `問題：${bug.problem || '未填寫'}`,
+            `原因：${bug.cause || '未填寫'}`,
+            `解法：${bug.solution || '未填寫'}`,
+            `學到什麼：${bug.lesson || '未填寫'}`,
+            ''
+          ]) : ['未填寫'])
         ].join('\n');
-        addBodySlide(`一、困難解決歷程 ${index + 1}`, body, { maxLength: 900, fontSize: 13 });
+        addBodySlide(`過程遭遇的困難及困難解決的歷程 ${index + 1}`, body, { maxLength: 900, fontSize: 13 });
       });
       if (difficultyEntries.length === 0) {
-        addBodySlide('一、過程遭遇的困難及困難解決的歷程', '尚未引用 Mission。');
+        addBodySlide('過程遭遇的困難及困難解決的歷程', '尚未引用 Mission。');
       }
 
       const getImageSize = (dataUrl) => new Promise((resolve) => {
@@ -951,14 +1082,14 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
         const imageItems = items.filter(item => item.dataUrl?.startsWith('data:image')).slice(0, 6);
         if (imageItems.length === 0) return false;
         const layouts = {
-          1: [{ x: 2.2, y: 1.35, w: 8.9, h: 3.75 }],
-          2: [{ x: 1.1, y: 1.45, w: 5.3, h: 3.35 }, { x: 6.9, y: 1.45, w: 5.3, h: 3.35 }],
-          3: [{ x: 0.85, y: 1.25, w: 3.75, h: 2.65 }, { x: 4.8, y: 1.25, w: 3.75, h: 2.65 }, { x: 8.75, y: 1.25, w: 3.75, h: 2.65 }],
-          4: [{ x: 1.1, y: 1.15, w: 5.3, h: 1.9 }, { x: 6.9, y: 1.15, w: 5.3, h: 1.9 }, { x: 1.1, y: 3.25, w: 5.3, h: 1.9 }, { x: 6.9, y: 3.25, w: 5.3, h: 1.9 }]
+          1: [{ x: 2.2, y: 2.05, w: 8.9, h: 3.1 }],
+          2: [{ x: 1.1, y: 2.05, w: 5.3, h: 3.0 }, { x: 6.9, y: 2.05, w: 5.3, h: 3.0 }],
+          3: [{ x: 0.85, y: 2.0, w: 3.75, h: 2.35 }, { x: 4.8, y: 2.0, w: 3.75, h: 2.35 }, { x: 8.75, y: 2.0, w: 3.75, h: 2.35 }],
+          4: [{ x: 1.1, y: 1.95, w: 5.3, h: 1.55 }, { x: 6.9, y: 1.95, w: 5.3, h: 1.55 }, { x: 1.1, y: 3.7, w: 5.3, h: 1.55 }, { x: 6.9, y: 3.7, w: 5.3, h: 1.55 }]
         };
         const grid = layouts[imageItems.length] || [
-          { x: 0.9, y: 1.15, w: 3.55, h: 1.75 }, { x: 4.9, y: 1.15, w: 3.55, h: 1.75 }, { x: 8.9, y: 1.15, w: 3.55, h: 1.75 },
-          { x: 0.9, y: 3.1, w: 3.55, h: 1.75 }, { x: 4.9, y: 3.1, w: 3.55, h: 1.75 }, { x: 8.9, y: 3.1, w: 3.55, h: 1.75 }
+          { x: 0.9, y: 1.95, w: 3.55, h: 1.45 }, { x: 4.9, y: 1.95, w: 3.55, h: 1.45 }, { x: 8.9, y: 1.95, w: 3.55, h: 1.45 },
+          { x: 0.9, y: 3.65, w: 3.55, h: 1.45 }, { x: 4.9, y: 3.65, w: 3.55, h: 1.45 }, { x: 8.9, y: 3.65, w: 3.55, h: 1.45 }
         ];
 
         for (const [imageIndex, item] of imageItems.entries()) {
@@ -974,28 +1105,29 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
         const slide = pptx.addSlide();
         slide.background = { color: 'F8FAFC' };
         const sourceItems = Array.isArray(page.sourceItems) ? page.sourceItems : [];
-        slide.addText(page.title || '未命名成果', { x: 0.75, y: 0.55, w: 11.75, h: 0.45, fontFace: 'Aptos Display', fontSize: 24, bold: true, color: '111827', fit: 'shrink' });
+        addSlideHeader(slide, page.title || '未命名成果');
         slide.addText(page.description || '未填寫成果說明', { x: 0.75, y: 5.35, w: 11.75, h: 1.15, fontSize: 13, color: '334155', fit: 'shrink', valign: 'top' });
 
         if (isMediaResultType(page.type) && await addMediaImages(slide, sourceItems)) {
         } else if (page.type === 'code') {
           const codeText = page.sourceCode || page.sourceDetail || page.sourceLabel || '未填寫程式碼';
-          slide.addText(codeText.slice(0, 1800), { x: 0.75, y: 1.35, w: 11.75, h: 3.65, fontFace: 'Courier New', fontSize: 10, color: '111827', fill: { color: 'F1F5F9' }, margin: 0.08, fit: 'shrink', breakLine: false, valign: 'top' });
+          slide.addText(codeText.slice(0, 1800), { x: 0.75, y: headerSubtitle ? 1.92 : 1.62, w: 11.75, h: headerSubtitle ? 3.05 : 3.35, fontFace: 'Courier New', fontSize: 10, color: '111827', fill: { color: 'F1F5F9' }, margin: 0.08, fit: 'shrink', breakLine: false, valign: 'top' });
         } else if (page.type === 'github') {
           if (page.sourceUrl) {
-            slide.addText(page.sourceUrl, { x: 0.75, y: 1.35, w: 10.8, h: 0.3, fontSize: 14, color: '2563EB', hyperlink: { url: page.sourceUrl }, fit: 'shrink' });
+            slide.addText(page.sourceUrl, { x: 0.75, y: headerSubtitle ? 1.92 : 1.62, w: 10.8, h: 0.3, fontSize: 14, color: '2563EB', hyperlink: { url: page.sourceUrl }, fit: 'shrink' });
           }
-          slide.addText(page.sourceDetail || '', { x: 0.75, y: 1.85, w: 11.75, h: 2.8, fontSize: 13, color: '334155', fit: 'shrink', valign: 'top' });
+          slide.addText(page.sourceDetail || '', { x: 0.75, y: headerSubtitle ? 2.42 : 2.12, w: 11.75, h: headerSubtitle ? 2.3 : 2.6, fontSize: 13, color: '334155', fit: 'shrink', valign: 'top' });
         } else {
-          slide.addText(page.sourceDetail || page.sourceUrl || '未填寫成果內容', { x: 0.75, y: 1.35, w: 11.75, h: 3.65, fontSize: 13, color: '334155', fit: 'shrink', valign: 'top' });
+          slide.addText(page.sourceDetail || page.sourceUrl || '未填寫成果內容', { x: 0.75, y: headerSubtitle ? 1.92 : 1.62, w: 11.75, h: headerSubtitle ? 3.05 : 3.35, fontSize: 13, color: '334155', fit: 'shrink', valign: 'top' });
         }
       }
       if (resultPages.length === 0) {
-        addBodySlide('二、成果說明', '尚未建立成果頁。');
+        addBodySlide('成果說明', '尚未建立成果頁。');
       }
 
       const reflectionText = renderProjectReflectionText(reflection);
-      addBodySlide('三、學習反思與心得', reflectionText || '尚未選擇反思模板。', { maxLength: 900, fontSize: 13 });
+      addBodySlide('學習反思與心得', reflectionText || '尚未選擇反思模板。', { maxLength: 900, fontSize: 13 });
+      addBodySlide('自我修正與未來規畫', reportFuturePlan || '未填寫', { maxLength: 900, fontSize: 13 });
 
       const pptxBlob = await pptx.write({ outputType: 'blob' });
       const fileName = `${cleanFileName(project.name)}_ProjectReport.pptx`;
@@ -1033,39 +1165,71 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
 
       <section className="project-report-section">
         <h4><Tag size={18} /> 專案標題</h4>
-        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">從標題寫作選擇</label>
-            <select value={report.titleId || ''} onChange={event => selectReportTitle(event.target.value)}
-              className="w-full rounded-xl border-slate-300 border p-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-              <option value="">選擇標題寫作清單</option>
-              {sortedWritingTitles.map(item => (
-                <option key={item.id} value={item.id}>
-                  {item.favorite ? '⭐ ' : ''}{item.title || '未命名標題'}
-                </option>
-              ))}
-            </select>
-            {sortedWritingTitles.length === 0 && (
-              <p className="project-report-hint">標題寫作目前沒有收藏標題，請先到寫作中心建立。</p>
-            )}
-          </div>
-          <Input
-            label="專案報告標題"
-            value={reportTitle}
-            onChange={value => updateReport({ title: value, titleId: report.titleId || '' })}
-            placeholder="例如：三個月 Arduino 智慧避障車專題研究"
-          />
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">從標題寫作選擇</label>
+          <select value={report.titleId || ''} onChange={event => selectReportTitle(event.target.value)}
+            className="w-full rounded-xl border-slate-300 border p-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            <option value="">選擇標題寫作清單</option>
+            {sortedWritingTitles.map(item => (
+              <option key={item.id} value={item.id}>
+                {item.favorite ? '⭐ ' : ''}{item.title || '未命名標題'}
+              </option>
+            ))}
+          </select>
+          {sortedWritingTitles.length === 0 && (
+            <p className="project-report-hint">標題寫作目前沒有收藏標題，請先到寫作中心建立。</p>
+          )}
         </div>
         {reportTitle && (
           <div className="project-report-title-preview">
             <span>報告標題</span>
             <strong>{reportTitle}</strong>
+            {reportSubtitle && <p>{reportSubtitle}</p>}
           </div>
         )}
+        <Input
+          label="副標題"
+          value={reportSubtitle}
+          onChange={value => updateReport({ subtitle: value })}
+          placeholder="例如：五日演算法課程"
+        />
       </section>
 
       <section className="project-report-section">
-        <h4><Bug size={18} /> 一、過程遭遇的困難及困難解決的歷程</h4>
+        <h4><Target size={18} /> 學習動機</h4>
+        <Textarea
+          rows={6}
+          label="學習動機"
+          value={reportMotivation}
+          onChange={value => updateReport({ motivation: value })}
+          placeholder="說明為什麼想進行這個自主學習或專案。"
+        />
+      </section>
+
+      <section className="project-report-section">
+        <h4><FileText size={18} /> 實施策略</h4>
+        <Textarea
+          rows={6}
+          label="實施策略"
+          value={reportStrategy}
+          onChange={value => updateReport({ strategy: value })}
+          placeholder="說明學習平台、時間安排、練習方式與執行方法。"
+        />
+      </section>
+
+      <section className="project-report-section">
+        <h4><CheckCircle size={18} /> 計畫預期（我希望完成哪些能力？）</h4>
+        <Textarea
+          rows={6}
+          label="計畫預期"
+          value={reportExpected}
+          onChange={value => updateReport({ expected: value })}
+          placeholder="說明希望完成的能力、作品或學習成果。"
+        />
+      </section>
+
+      <section className="project-report-section">
+        <h4><Bug size={18} /> 過程遭遇的困難及困難解決的歷程</h4>
         <div className="project-report-add-row">
           <select value={difficultyMissionId} onChange={event => setDifficultyMissionId(event.target.value)}
             className="w-full rounded-xl border-slate-300 border p-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white">
@@ -1078,7 +1242,9 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
         </div>
 
         <div className="project-report-stack">
-          {difficultyEntries.map((entry, index) => (
+          {difficultyEntries.map((entry, index) => {
+            const hydratedEntry = hydrateDifficultyEntry(entry);
+            return (
             <article key={entry.id} className="project-report-entry">
               <div className="project-report-entry-actions">
                 <button type="button" title="上移" aria-label="上移" onClick={() => moveDifficultyEntry(index, 'up')}><ArrowUp size={16} /></button>
@@ -1086,29 +1252,48 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
                 <button type="button" title="刪除" aria-label="刪除" onClick={() => deleteDifficultyEntry(entry.id)}><Trash2 size={16} /></button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-[160px_1fr] gap-4">
-                <Input label="日期" type="date" value={entry.date} onChange={value => updateDifficultyEntry(entry.id, { date: value })} />
-                <Input label="Mission 標題" value={entry.title} onChange={value => updateDifficultyEntry(entry.id, { title: value })} />
+                <Input label="日期" type="date" value={hydratedEntry.date} onChange={value => updateDifficultyEntry(entry.id, { date: value })} />
+                <Input label="Mission 標題" value={hydratedEntry.title} onChange={value => updateDifficultyEntry(entry.id, { title: value })} />
               </div>
-              <Textarea rows={4} label="學習內容" value={entry.content} onChange={value => updateDifficultyEntry(entry.id, { content: value })} />
+              <p className="project-report-entry-subtitle">每日四宮格</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {DAILY_REFLECTION_ITEMS.map(item => (
                   <Textarea
                     key={item.key}
                     rows={3}
                     label={item.title}
-                    value={entry.dailyReflection?.[item.key] || ''}
+                    value={hydratedEntry.dailyReflection?.[item.key] || ''}
                     onChange={value => updateDifficultyReflection(entry.id, item.key, value)}
                   />
                 ))}
               </div>
+              <div className="project-report-bug-list">
+                <p className="project-report-entry-subtitle">Bug 排除紀錄</p>
+                {hydratedEntry.bugs?.length > 0 ? (
+                  hydratedEntry.bugs.map((bug, bugIndex) => (
+                    <div key={bug.id || `${entry.id}-${bugIndex}`} className="project-report-bug-card">
+                      <Input label="Bug 名稱" value={bug.name || ''} onChange={value => updateDifficultyBug(entry.id, bug.id || `${entry.id}-${bugIndex}`, 'name', value)} />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Textarea rows={2} label="問題" value={bug.problem || ''} onChange={value => updateDifficultyBug(entry.id, bug.id || `${entry.id}-${bugIndex}`, 'problem', value)} />
+                        <Textarea rows={2} label="原因" value={bug.cause || ''} onChange={value => updateDifficultyBug(entry.id, bug.id || `${entry.id}-${bugIndex}`, 'cause', value)} />
+                        <Textarea rows={2} label="解法" value={bug.solution || ''} onChange={value => updateDifficultyBug(entry.id, bug.id || `${entry.id}-${bugIndex}`, 'solution', value)} />
+                        <Textarea rows={2} label="學到什麼" value={bug.lesson || ''} onChange={value => updateDifficultyBug(entry.id, bug.id || `${entry.id}-${bugIndex}`, 'lesson', value)} />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="project-report-hint">此 Mission 尚無 Bug 排除紀錄。</p>
+                )}
+              </div>
             </article>
-          ))}
+            );
+          })}
           {difficultyEntries.length === 0 && <p className="project-report-hint">尚未引用 Mission。請先選擇 Project 底下的 Mission，再手動整理困難與解決歷程。</p>}
         </div>
       </section>
 
       <section className="project-report-section">
-        <h4><Star size={18} /> 二、成果說明</h4>
+        <h4><Star size={18} /> 成果說明</h4>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" icon={Plus} onClick={() => addResultPage('mission')}>從 Mission 建立</Button>
           <Button variant="secondary" icon={Plus} onClick={() => addResultPage('manual')}>自行建立</Button>
@@ -1243,7 +1428,7 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
       </section>
 
       <section className="project-report-section">
-        <h4><BookOpen size={18} /> 三、學習反思與心得</h4>
+        <h4><BookOpen size={18} /> 學習反思與心得</h4>
         <select value={reflection.templateId || ''} onChange={event => selectReflectionTemplate(event.target.value)}
           className="w-full rounded-xl border-slate-300 border p-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white">
           <option value="">引用寫作中心的反思模板</option>
@@ -1270,6 +1455,17 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
           <p className="project-report-hint">請先選擇一種完整反思模板。</p>
         )}
         {placeholders.length > 0 && <p className="project-report-hint">{placeholders.length} 個欄位可填寫，內容會儲存在此專案報告中。</p>}
+      </section>
+
+      <section className="project-report-section">
+        <h4><Calendar size={18} /> 自我修正與未來規畫</h4>
+        <Textarea
+          rows={8}
+          label="自我修正與未來規畫"
+          value={reportFuturePlan}
+          onChange={value => updateReport({ futurePlan: value })}
+          placeholder="寫出你打算如何修正錯誤、優化時間管理、尋求資源，以及未來學習計畫。"
+        />
       </section>
     </div>
   );
@@ -1321,9 +1517,11 @@ const ProjectCenter = ({ projects, missions, selectedProjectId, onSaveProject, o
                   className="w-full rounded-xl border-slate-300 border p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
               </div>
             </div>
+            <Input label="學生姓名" value={draft.studentName} onChange={v => updateDraft('studentName', v)} placeholder="沈立紀，可加隊友姓名" />
+            <Input label="學校" value={draft.school} onChange={v => updateDraft('school', v)} placeholder="台南一中，可加其他校名" />
             <Input label="指導老師" value={draft.teacher} onChange={v => updateDraft('teacher', v)} placeholder="例如：王老師" />
             <Input label="學習地點" value={draft.location} onChange={v => updateDraft('location', v)} placeholder="例如：Poppins Lab" />
-            <Textarea label="專案目標" rows={3} value={draft.goal} onChange={v => updateDraft('goal', v)} placeholder="這個歷程專案想達成什麼？" />
+            <Textarea label="學習動機" rows={3} value={draft.goal} onChange={v => updateDraft('goal', v)} placeholder="為什麼想進行這個專案？" />
             <Textarea label="專案內容" rows={3} value={draft.content} onChange={v => updateDraft('content', v)} placeholder="整理專案範圍、學習主題與產出。" />
           </div>
           <div className="flex gap-3">
@@ -1352,6 +1550,9 @@ const ProjectCenter = ({ projects, missions, selectedProjectId, onSaveProject, o
                   {project.startDate || '未設定開始'} - {project.endDate || '未設定結束'} · {missionCounts[project.id] || 0} 個 Mission
                 </p>
                 <p className="text-sm text-slate-500 mt-1">
+                  學生：{project.studentName || '未設定'} · 學校：{project.school || '未設定'}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">
                   指導老師：{project.teacher || '未設定'} · 學習地點：{project.location || '未設定'}
                 </p>
               </div>
@@ -1365,7 +1566,7 @@ const ProjectCenter = ({ projects, missions, selectedProjectId, onSaveProject, o
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-700 border-t border-slate-100 pt-4">
               <div>
-                <p className="font-bold text-slate-800 mb-1">專案目標</p>
+                <p className="font-bold text-slate-800 mb-1">學習動機</p>
                 <p className="whitespace-pre-wrap">{project.goal || '未填寫'}</p>
               </div>
               <div>
@@ -1386,9 +1587,11 @@ const ProjectCenter = ({ projects, missions, selectedProjectId, onSaveProject, o
                       className="w-full rounded-xl border-slate-300 border p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
                   </div>
                 </div>
+                <Input label="學生姓名" value={project.studentName || ''} onChange={v => onSaveProject({ ...project, studentName: v })} />
+                <Input label="學校" value={project.school || ''} onChange={v => onSaveProject({ ...project, school: v })} />
                 <Input label="指導老師" value={project.teacher} onChange={v => onSaveProject({ ...project, teacher: v })} />
                 <Input label="學習地點" value={project.location} onChange={v => onSaveProject({ ...project, location: v })} />
-                <Textarea label="專案目標" rows={3} value={project.goal} onChange={v => onSaveProject({ ...project, goal: v })} />
+                <Textarea label="學習動機" rows={3} value={project.goal} onChange={v => onSaveProject({ ...project, goal: v })} />
                 <Textarea label="專案內容" rows={3} value={project.content} onChange={v => onSaveProject({ ...project, content: v })} />
               </div>
             )}
