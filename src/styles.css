@@ -11,8 +11,8 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Noto Sans TC", "PingFang TC",
     "Microsoft JhengHei", sans-serif;
   letter-spacing: 0;
-  background: linear-gradient(180deg, #f7f9fc 0%, #eef4f8 46%, #f9fafb 100%);
-  color: #1d1d1f;
+  background: #fff8ec;
+  color: #173763;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -85,30 +85,88 @@ button:disabled {
 
 #root {
   min-height: 100vh;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(239, 246, 249, 0.9));
+  background:
+    radial-gradient(circle at 88% 16%, rgba(255, 105, 89, 0.12), transparent 18%),
+    radial-gradient(circle at 12% 78%, rgba(88, 181, 230, 0.14), transparent 24%),
+    linear-gradient(180deg, #fff8ec 0%, #fffaf2 48%, #f8fbff 100%);
 }
 
 #root .bg-white {
-  background-color: rgba(255, 255, 255, 0.84);
+  background-color: rgba(255, 252, 245, 0.9);
 }
 
 #root header.bg-white\/90 {
-  background-color: rgba(251, 251, 253, 0.82);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+  background-color: rgba(255, 250, 240, 0.92);
+  box-shadow: 0 1px 0 rgba(23, 55, 99, 0.08);
 }
 
 #root .shadow-card {
-  box-shadow: 0 18px 45px rgba(45, 72, 124, 0.10);
+  box-shadow: 0 18px 45px rgba(23, 55, 99, 0.10);
 }
 
 #root .border-poppins-line {
-  border-color: rgba(210, 210, 215, 0.78);
+  border-color: rgba(218, 203, 182, 0.88);
 }
 
 #root h1,
 #root h2,
 #root h3 {
   letter-spacing: 0;
+  color: #173763;
+}
+
+#root .bg-slate-50 {
+  background-color: transparent;
+}
+
+#root .text-slate-800,
+#root .text-slate-900 {
+  color: #173763;
+}
+
+#root .text-slate-600,
+#root .text-slate-500 {
+  color: #657287;
+}
+
+#root .bg-blue-600 {
+  background-color: #ff6b5b;
+}
+
+#root .text-blue-600 {
+  color: #43a7dd;
+}
+
+#root .border-slate-200,
+#root .border-slate-100 {
+  border-color: rgba(232, 216, 192, 0.9);
+}
+
+#root aside {
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.96), rgba(255, 246, 231, 0.94)) !important;
+  border-color: rgba(232, 216, 192, 0.92) !important;
+}
+
+#root aside .bg-blue-600 {
+  background: #173763;
+}
+
+#root aside button.bg-blue-600,
+#root nav button.bg-blue-600 {
+  background: #ff6b5b;
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(255, 107, 91, 0.24);
+}
+
+#root .hover\:bg-slate-100:hover,
+#root .hover\:bg-slate-50:hover {
+  background-color: rgba(255, 244, 224, 0.82);
+}
+
+#root .rounded-2xl,
+#root .rounded-xl {
+  border-radius: 18px;
 }
 
 #root input,
@@ -122,8 +180,8 @@ button:disabled {
 }
 
 .quick-action.record-action {
-  background: linear-gradient(135deg, #0071e3, #409cff 58%, #5e5ce6);
-  box-shadow: 0 12px 26px rgba(0, 113, 227, 0.22);
+  background: linear-gradient(135deg, #ff6b5b, #ff826f);
+  box-shadow: 0 12px 26px rgba(255, 107, 91, 0.26);
   border-color: rgba(255, 255, 255, 0.72);
   color: #ffffff;
 }
@@ -173,6 +231,124 @@ button:disabled {
 .stat-card {
   position: relative;
   overflow: hidden;
+}
+
+.portfolio-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(340px, 0.9fr);
+  align-items: center;
+  gap: 34px;
+  min-height: 430px;
+  overflow: hidden;
+  border-radius: 26px;
+  border: 1px solid rgba(238, 222, 197, 0.9);
+  background:
+    radial-gradient(circle at 74% 22%, rgba(94, 181, 230, 0.12), transparent 18%),
+    linear-gradient(135deg, rgba(255, 251, 243, 0.98), rgba(255, 247, 232, 0.92));
+  padding: clamp(28px, 5vw, 56px);
+  box-shadow: 0 22px 54px rgba(23, 55, 99, 0.10);
+}
+
+.portfolio-hero::before,
+.portfolio-hero::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.portfolio-hero::before {
+  left: 42px;
+  bottom: 116px;
+  width: 290px;
+  height: 7px;
+  border-radius: 999px;
+  background: #ff6b5b;
+  transform: rotate(-2deg);
+}
+
+.portfolio-hero::after {
+  top: 76px;
+  right: 44%;
+  width: 52px;
+  height: 52px;
+  background: #ffffff;
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 56%, 79% 91%, 50% 70%, 21% 91%, 32% 56%, 2% 35%, 39% 35%);
+  outline: 4px solid #58b5e6;
+  opacity: 0.85;
+}
+
+.portfolio-hero-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 650px;
+}
+
+.portfolio-hero-eyebrow {
+  margin: 0 0 22px;
+  color: #ff6b5b;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.portfolio-hero h2 {
+  margin: 0;
+  color: #173763;
+  font-size: clamp(42px, 6vw, 74px);
+  font-weight: 950;
+  line-height: 1.15;
+}
+
+.portfolio-hero-copy > p:not(.portfolio-hero-eyebrow) {
+  max-width: 600px;
+  margin: 30px 0 0;
+  color: #5e6b7d;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.9;
+}
+
+.portfolio-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 34px;
+}
+
+.portfolio-hero-actions button:first-child {
+  min-height: 58px;
+  border-radius: 22px;
+  background: #ff6b5b !important;
+  padding: 0 34px;
+  color: #ffffff !important;
+  font-size: 17px;
+  font-weight: 900;
+  box-shadow: 0 14px 26px rgba(255, 107, 91, 0.28);
+}
+
+.portfolio-hero-actions button:last-child {
+  min-height: 58px;
+  border: 3px solid #58b5e6 !important;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.5) !important;
+  padding: 0 34px;
+  color: #43a7dd !important;
+  font-size: 17px;
+  font-weight: 900;
+  box-shadow: none;
+}
+
+.portfolio-hero-art {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.portfolio-hero-art img {
+  width: min(100%, 640px);
+  filter: drop-shadow(0 28px 36px rgba(23, 55, 99, 0.16));
 }
 
 .stat-card::before {
@@ -993,6 +1169,52 @@ button:disabled {
 }
 
 @media (max-width: 767px) {
+  .portfolio-hero {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    padding: 26px 20px;
+  }
+
+  .portfolio-hero::before {
+    left: 24px;
+    bottom: auto;
+    top: 174px;
+    width: 210px;
+  }
+
+  .portfolio-hero::after {
+    top: 18px;
+    right: 24px;
+    width: 38px;
+    height: 38px;
+  }
+
+  .portfolio-hero-eyebrow {
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .portfolio-hero h2 {
+    font-size: 38px;
+  }
+
+  .portfolio-hero-copy > p:not(.portfolio-hero-eyebrow) {
+    margin-top: 24px;
+    font-size: 16px;
+  }
+
+  .portfolio-hero-actions {
+    display: grid;
+  }
+
+  .portfolio-hero-actions button {
+    width: 100%;
+  }
+
+  .portfolio-hero-art img {
+    width: min(100%, 420px);
+  }
+
   #root .rounded-2xl {
     border-radius: 0.875rem;
   }

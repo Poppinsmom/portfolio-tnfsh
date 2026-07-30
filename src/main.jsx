@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import LearningPortfolioPDF from './components/pdf/LearningPortfolioPDF';
 import WritingCenter from './components/writing/WritingCenter';
+import heroImage from './assets/learning-portfolio-hero.png';
 import './styles.css';
 
 const DEFAULT_AVAILABLE_TAGS = [
@@ -477,7 +478,7 @@ const DailyReflectionGrid = ({ value, onChange, readonly = false }) => {
   );
 };
 
-const Dashboard = ({ missions, projects }) => {
+const Dashboard = ({ missions, projects, onCreateMission, onOpenWriting }) => {
   const stats = useMemo(() => {
     let completed = 0;
     let images = 0, codes = 0, bugs = 0, githubs = 0, masterpieces = 0, totalHours = 0;
@@ -516,9 +517,19 @@ const Dashboard = ({ missions, projects }) => {
 
   return (
     <div className="space-y-6">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-slate-800">歡迎回來，學習者 👋</h2>
-        <p className="text-slate-500">持續累積，讓每個 Debug 都成為成長的養分。</p>
+      <div className="portfolio-hero">
+        <div className="portfolio-hero-copy">
+          <p className="portfolio-hero-eyebrow">高中自主學習・專案報告・成果匯出</p>
+          <h2>把每天的學習亮點，整理成正式作品集</h2>
+          <p>從 Mission、Project 到 Project Report，陪你把學習過程、程式作品、圖片成果與反思，慢慢累積成可以交出去的學習歷程。</p>
+          <div className="portfolio-hero-actions">
+            <Button icon={Plus} onClick={onCreateMission}>開始新增紀錄</Button>
+            <Button variant="secondary" icon={PenLine} onClick={onOpenWriting}>整理寫作素材</Button>
+          </div>
+        </div>
+        <div className="portfolio-hero-art" aria-hidden="true">
+          <img src={heroImage} alt="" />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2202,11 +2213,12 @@ export default function App() {
             )}
             {currentTab === 'dashboard' && (
               <div>
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-slate-800">儀表板</h2>
-                  <Button icon={Plus} onClick={() => { setInitialProjectId(''); setCurrentTab('edit'); setEditingId('new'); }}>新增紀錄</Button>
-                </div>
-                <Dashboard missions={missions} projects={projects} />
+                <Dashboard
+                  missions={missions}
+                  projects={projects}
+                  onCreateMission={() => { setInitialProjectId(''); setCurrentTab('edit'); setEditingId('new'); }}
+                  onOpenWriting={() => { setSelectedProjectId(''); setCurrentTab('writing'); }}
+                />
               </div>
             )}
 
