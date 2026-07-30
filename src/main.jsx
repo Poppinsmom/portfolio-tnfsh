@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import LearningPortfolioPDF from './components/pdf/LearningPortfolioPDF';
 import WritingCenter from './components/writing/WritingCenter';
-import heroImage from './assets/learning-portfolio-hero.png';
+import heroImage from './assets/tnfsh-mascot-hero.png';
 import { PPT_BACKGROUNDS } from './data/pptBackgrounds';
 import './styles.css';
 

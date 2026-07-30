@@ -250,21 +250,10 @@ button:disabled {
   box-shadow: 0 22px 54px rgba(23, 55, 99, 0.10);
 }
 
-.portfolio-hero::before,
 .portfolio-hero::after {
   content: "";
   position: absolute;
   pointer-events: none;
-}
-
-.portfolio-hero::before {
-  left: 42px;
-  bottom: 116px;
-  width: 290px;
-  height: 7px;
-  border-radius: 999px;
-  background: #ff6b5b;
-  transform: rotate(-2deg);
 }
 
 .portfolio-hero::after {
@@ -347,7 +336,9 @@ button:disabled {
 }
 
 .portfolio-hero-art img {
-  width: min(100%, 640px);
+  width: min(100%, 560px);
+  max-height: 430px;
+  object-fit: contain;
   filter: drop-shadow(0 28px 36px rgba(23, 55, 99, 0.16));
 }
 
@@ -1305,13 +1296,6 @@ button:disabled {
     grid-template-columns: 1fr;
     min-height: 0;
     padding: 26px 20px;
-  }
-
-  .portfolio-hero::before {
-    left: 24px;
-    bottom: auto;
-    top: 174px;
-    width: 210px;
   }
 
   .portfolio-hero::after {
