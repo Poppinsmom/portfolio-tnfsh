@@ -12,6 +12,9 @@ create table if not exists public.poppins_user_data (
 
 alter table public.poppins_user_data enable row level security;
 
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on public.poppins_user_data to authenticated;
+
 drop policy if exists "Users can read their own Poppins data" on public.poppins_user_data;
 create policy "Users can read their own Poppins data"
 on public.poppins_user_data
