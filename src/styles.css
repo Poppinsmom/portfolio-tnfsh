@@ -1314,6 +1314,74 @@ button:disabled {
   text-decoration: underline;
 }
 
+.logout-guard {
+  display: grid;
+  gap: 16px;
+}
+
+.logout-guard > p {
+  margin: 0;
+  color: #334155;
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.logout-guard-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.logout-guard-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 50px;
+  border-radius: 14px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #173763;
+  font-size: 15px;
+  font-weight: 900;
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease;
+}
+
+.logout-guard-actions button:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+.logout-guard-actions button.is-done {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.logout-guard-actions button.logout-guard-submit {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #94a3b8;
+}
+
+.logout-guard-actions button.logout-guard-submit.is-ready {
+  border-color: #ff6b5b;
+  background: #ff6b5b;
+  color: #ffffff;
+  box-shadow: 0 14px 26px rgba(255, 107, 91, 0.24);
+}
+
+.logout-guard-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.logout-guard-note {
+  border-radius: 12px;
+  background: #fff8ec;
+  padding: 10px 12px;
+  color: #657287 !important;
+  font-size: 13px !important;
+}
+
 .cloud-sync-card {
   display: grid;
   gap: 16px;

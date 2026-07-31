@@ -530,6 +530,61 @@ const ResetPasswordModal = ({ isOpen, onClose, onSubmit, isWorking }) => {
   );
 };
 
+const LogoutGuardModal = ({ isOpen, onClose, onDownloadBackup, onUploadCloud, onConfirmLogout, isWorking }) => {
+  const [backupDone, setBackupDone] = useState(false);
+  const [cloudDone, setCloudDone] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setBackupDone(false);
+      setCloudDone(false);
+    }
+  }, [isOpen]);
+
+  const downloadBackup = async () => {
+    try {
+      await onDownloadBackup();
+      setBackupDone(true);
+    } catch {
+      setBackupDone(false);
+    }
+  };
+
+  const uploadCloud = async () => {
+    try {
+      await onUploadCloud();
+      setCloudDone(true);
+    } catch {
+      setCloudDone(false);
+    }
+  };
+
+  const canLogout = backupDone && cloudDone && !isWorking;
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="登出前請先完成安全備份" maxWidth="max-w-lg">
+      <div className="logout-guard">
+        <p>為避免資料只存在本機或尚未同步，登出前請先下載備份檔，並將目前資料上傳到雲端。</p>
+        <div className="logout-guard-actions">
+          <button type="button" className={backupDone ? 'is-done' : ''} onClick={downloadBackup} disabled={isWorking}>
+            <Download size={18} />
+            <span>{backupDone ? '已下載 JSON 備份' : '下載 JSON 備份'}</span>
+          </button>
+          <button type="button" className={cloudDone ? 'is-done' : ''} onClick={uploadCloud} disabled={isWorking}>
+            <Upload size={18} />
+            <span>{cloudDone ? '已上傳雲端' : '上傳雲端'}</span>
+          </button>
+          <button type="button" className={`logout-guard-submit ${canLogout ? 'is-ready' : ''}`} onClick={onConfirmLogout} disabled={!canLogout}>
+            <LogOut size={18} />
+            <span>完成並登出</span>
+          </button>
+        </div>
+        <p className="logout-guard-note">關閉此視窗不會登出，會留在目前頁面繼續操作。</p>
+      </div>
+    </Modal>
+  );
+};
+
 const Input = ({ label, type="text", value, onChange, placeholder, min, step }) => (
   <div>
     <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
@@ -2549,6 +2604,7 @@ export default function App() {
   const [isAuthWorking, setIsAuthWorking] = useState(false);
   const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
   const [isResetPasswordWorking, setIsResetPasswordWorking] = useState(false);
+  const [isLogoutGuardOpen, setIsLogoutGuardOpen] = useState(false);
   const [isCloudWorking, setIsCloudWorking] = useState(false);
   const [cloudStatus, setCloudStatus] = useState('');
   const pdfRef = useRef(null);
@@ -2706,25 +2762,45 @@ export default function App() {
     }
   };
 
+  const handleRequestSignOut = () => {
+    setCurrentTab('info');
+    setIsLogoutGuardOpen(true);
+  };
+
   const handleSignOut = async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
     setUser(null);
+    setIsLogoutGuardOpen(false);
     setTemporaryCloudStatus('已登出雲端');
   };
 
-  const handleUploadCloud = async () => {
-    if (!user?.id) return;
+  const handleUploadCloud = async ({ showModal = true } = {}) => {
+    if (!user?.id) throw new Error('請先登入雲端帳號。');
     setIsCloudWorking(true);
     try {
       await saveCloudBundle(user.id, { missions, projects, availableTags, writingTitles });
       setTemporaryCloudStatus('本機資料已上傳雲端');
-      setModal({ show: true, title: '雲端同步完成', message: '本機資料已同步到 Supabase。' });
+      if (showModal) setModal({ show: true, title: '雲端同步完成', message: '本機資料已同步到 Supabase。' });
     } catch (error) {
       console.error(error);
-      setModal({ show: true, title: '雲端同步失敗', message: error.message || '請確認資料表與 RLS policy 是否已建立。' });
+      if (showModal) setModal({ show: true, title: '雲端同步失敗', message: error.message || '請確認資料表與 RLS policy 是否已建立。' });
+      throw error;
     } finally {
       setIsCloudWorking(false);
+    }
+  };
+
+  const handleLogoutBackup = async () => {
+    handleExportJson();
+  };
+
+  const handleLogoutUploadCloud = async () => {
+    try {
+      await handleUploadCloud({ showModal: false });
+    } catch (error) {
+      setModal({ show: true, title: '雲端同步失敗', message: error.message || '請確認網路、登入狀態與 Supabase 權限。' });
+      throw error;
     }
   };
 
@@ -2990,7 +3066,7 @@ export default function App() {
           user={user}
           cloudStatus={cloudStatus}
           onOpenAuth={() => setIsAuthOpen(true)}
-          onSignOut={handleSignOut}
+          onSignOut={handleRequestSignOut}
         />
       </aside>
 
@@ -3009,7 +3085,7 @@ export default function App() {
             user={user}
             cloudStatus={cloudStatus}
             onOpenAuth={() => setIsAuthOpen(true)}
-            onSignOut={handleSignOut}
+            onSignOut={handleRequestSignOut}
             compact
           />
         </div>
@@ -3106,7 +3182,7 @@ export default function App() {
                   user={user}
                   cloudStatus={cloudStatus}
                   onOpenAuth={() => setIsAuthOpen(true)}
-                  onSignOut={handleSignOut}
+                  onSignOut={handleRequestSignOut}
                   onUploadCloud={handleUploadCloud}
                   onDownloadCloud={handleDownloadCloud}
                   onAddTag={handleAddTag}
@@ -3175,6 +3251,15 @@ export default function App() {
         onClose={() => setIsResetPasswordOpen(false)}
         onSubmit={handleUpdatePassword}
         isWorking={isResetPasswordWorking}
+      />
+
+      <LogoutGuardModal
+        isOpen={isLogoutGuardOpen}
+        onClose={() => setIsLogoutGuardOpen(false)}
+        onDownloadBackup={handleLogoutBackup}
+        onUploadCloud={handleLogoutUploadCloud}
+        onConfirmLogout={handleSignOut}
+        isWorking={isCloudWorking}
       />
 
       <div className="pdf-render-host" aria-hidden="true">
