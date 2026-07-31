@@ -473,15 +473,18 @@ const AuthPanel = ({ user, cloudStatus, onOpenAuth, onSignOut, compact = false }
   </div>
 );
 
-const AuthModal = ({ isOpen, onClose, onSubmit, isWorking }) => {
+const AuthModal = ({ isOpen, onClose, onSubmit, onResetPassword, isWorking }) => {
   const [mode, setMode] = useState('signIn');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const submit = async (event) => {
     event.preventDefault();
-    await onSubmit({ mode, email, password });
+    if (mode === 'forgot') await onResetPassword(email);
+    else await onSubmit({ mode, email, password });
   };
+
+  const isForgot = mode === 'forgot';
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="雲端登入">
@@ -491,11 +494,37 @@ const AuthModal = ({ isOpen, onClose, onSubmit, isWorking }) => {
           <button type="button" className={mode === 'signUp' ? 'is-active' : ''} onClick={() => setMode('signUp')}>註冊</button>
         </div>
         <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="name@example.com" />
-        <Input label="密碼" type="password" value={password} onChange={setPassword} placeholder="至少 6 個字元" />
-        <Button type="submit" icon={LogIn} disabled={isWorking || !email || !password}>
-          {isWorking ? '處理中...' : mode === 'signIn' ? '登入雲端' : '建立帳號'}
+        {!isForgot && <Input label="密碼" type="password" value={password} onChange={setPassword} placeholder="至少 6 個字元" />}
+        <Button type="submit" icon={LogIn} disabled={isWorking || !email || (!isForgot && !password)}>
+          {isWorking ? '處理中...' : isForgot ? '寄出重設密碼信' : mode === 'signIn' ? '登入雲端' : '建立帳號'}
         </Button>
-        <p>註冊後若 Supabase 有開啟 Email 確認，請先到信箱完成確認再登入。</p>
+        {mode === 'signIn' && (
+          <button type="button" className="auth-link-button" onClick={() => { setMode('forgot'); setPassword(''); }}>
+            忘記密碼？
+          </button>
+        )}
+        <p>{isForgot ? '系統會寄出重設密碼信。請確認 Supabase URL Configuration 已設定成正式網站網址。' : '註冊後若 Supabase 有開啟 Email 確認，請先到信箱完成確認再登入。'}</p>
+      </form>
+    </Modal>
+  );
+};
+
+const ResetPasswordModal = ({ isOpen, onClose, onSubmit, isWorking }) => {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  const submit = async (event) => {
+    event.preventDefault();
+    await onSubmit(password, confirmPassword);
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="設定新密碼">
+      <form onSubmit={submit} className="auth-form">
+        <Input label="新密碼" type="password" value={password} onChange={setPassword} placeholder="至少 6 個字元" />
+        <Input label="再次輸入新密碼" type="password" value={confirmPassword} onChange={setConfirmPassword} placeholder="確認新密碼" />
+        <Button type="submit" icon={Save} disabled={isWorking || !password || !confirmPassword}>更新密碼</Button>
+        <p>密碼更新完成後，可以用新密碼登入雲端同步。</p>
       </form>
     </Modal>
   );
@@ -2272,6 +2301,7 @@ const InfoCenter = ({ missions, projects, availableTags, user, cloudStatus, onOp
         <InfoTab id="tags" label="能力標籤" icon={Tag} />
         <InfoTab id="data" label="資料管理" icon={Download} />
         <InfoTab id="cloud" label="雲端同步" icon={Cloud} />
+        <InfoTab id="guide" label="操作步驟" icon={BookOpen} />
       </div>
 
       {section === 'evidence' && <EvidenceCenter missions={missions} projects={projects} />}
@@ -2331,6 +2361,67 @@ const InfoCenter = ({ missions, projects, availableTags, user, cloudStatus, onOp
             {!isSupabaseConfigured && (
               <p className="project-report-hint">尚未設定 Supabase 環境變數：VITE_SUPABASE_URL、VITE_SUPABASE_ANON_KEY。</p>
             )}
+          </div>
+        </SectionCard>
+      )}
+
+      {section === 'guide' && (
+        <SectionCard title="操作步驟與注意事項" icon={BookOpen}>
+          <div className="operation-guide-grid">
+            <article className="operation-guide-card">
+              <div className="operation-guide-card-head">
+                <Home size={22} />
+                <h3>第一種｜本機操作及注意事項</h3>
+              </div>
+              <ol>
+                <li>直接在目前這台電腦或手機建立 Project、Mission、專案報告與寫作素材。</li>
+                <li>資料會自動儲存在目前瀏覽器，不需要登入也可以使用。</li>
+                <li>重要資料請定期到「資料管理」按「備份 JSON」。</li>
+                <li>換電腦、換瀏覽器、清除瀏覽器資料後，原本資料不會自動出現。</li>
+                <li>要還原資料時，到「資料管理」按「匯入 JSON」。</li>
+              </ol>
+              <div className="operation-guide-note">
+                <strong>注意事項</strong>
+                <p>本機模式最簡單，但資料只在目前瀏覽器裡。正式交件前，建議先匯出 JSON 備份，再匯出 PDF 或 PPT。</p>
+              </div>
+            </article>
+
+            <article className="operation-guide-card">
+              <div className="operation-guide-card-head">
+                <Cloud size={22} />
+                <h3>第二種｜雲端操作及注意事項</h3>
+              </div>
+              <ol>
+                <li>先按側邊欄或手機上方的「登入」，使用 Email 與密碼登入。</li>
+                <li>第一次要同步時，到「資訊中心 → 雲端同步」。</li>
+                <li>在主要使用的裝置按「本機資料上傳雲端」。</li>
+                <li>換另一台電腦或手機時，登入同一個帳號。</li>
+                <li>在新裝置按「雲端資料下載到本機」，即可載入同一份資料。</li>
+              </ol>
+              <div className="operation-guide-note">
+                <strong>注意事項</strong>
+                <p>「下載到本機」會用雲端資料覆蓋目前瀏覽器資料。操作前建議先備份 JSON。多人或不同帳號不會互相看到資料。</p>
+              </div>
+            </article>
+
+            <article className="operation-guide-card">
+              <div className="operation-guide-card-head">
+                <Settings size={22} />
+                <h3>第三種｜如何建立雲端同步登入系統</h3>
+              </div>
+              <ol>
+                <li>建立 Supabase Project，記下 Project URL 與 Publishable key。</li>
+                <li>在 Supabase SQL Editor 執行專案內的 `supabase-schema.sql`，建立資料表與 RLS 權限。</li>
+                <li>到 Supabase「Authentication → URL Configuration」，把 Site URL 設成 Cloudflare Pages 網址。</li>
+                <li>在 Cloudflare Pages 的 Environment variables 設定 `VITE_SUPABASE_URL` 與 `VITE_SUPABASE_ANON_KEY`。</li>
+                <li>用 GitHub Desktop commit + push 最新程式碼，等待 Cloudflare Pages 重新部署。</li>
+                <li>部署完成後，到網站註冊、登入，測試上傳與下載雲端資料。</li>
+              </ol>
+              <div className="operation-guide-note">
+                <strong>注意事項</strong>
+                <p>Publishable key 可以放在前端環境變數；Secret key 不要貼到網站程式或 GitHub。圖片大量使用時，後續建議改放 Supabase Storage。</p>
+              </div>
+            </article>
           </div>
         </SectionCard>
       )}
@@ -2456,6 +2547,8 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isAuthWorking, setIsAuthWorking] = useState(false);
+  const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
+  const [isResetPasswordWorking, setIsResetPasswordWorking] = useState(false);
   const [isCloudWorking, setIsCloudWorking] = useState(false);
   const [cloudStatus, setCloudStatus] = useState('');
   const pdfRef = useRef(null);
@@ -2485,8 +2578,12 @@ export default function App() {
       setUser(data.session?.user || null);
     });
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user || null);
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsAuthOpen(false);
+        setIsResetPasswordOpen(true);
+      }
     });
 
     return () => subscription.subscription.unsubscribe();
@@ -2563,6 +2660,49 @@ export default function App() {
       setModal({ show: true, title: '登入失敗', message: error.message || '請確認 Email 與密碼是否正確。' });
     } finally {
       setIsAuthWorking(false);
+    }
+  };
+
+  const handleRequestPasswordReset = async (email) => {
+    if (!supabase) return;
+    setIsAuthWorking(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin
+      });
+      if (error) throw error;
+      setIsAuthOpen(false);
+      setModal({ show: true, title: '重設密碼信已寄出', message: '請到信箱打開重設密碼連結，再回到網站設定新密碼。' });
+    } catch (error) {
+      console.error(error);
+      setModal({ show: true, title: '寄送失敗', message: error.message || '請確認 Email 是否正確，並稍後再試。' });
+    } finally {
+      setIsAuthWorking(false);
+    }
+  };
+
+  const handleUpdatePassword = async (password, confirmPassword) => {
+    if (!supabase) return;
+    if (password !== confirmPassword) {
+      setModal({ show: true, title: '密碼不一致', message: '兩次輸入的新密碼不同，請重新確認。' });
+      return;
+    }
+    if (password.length < 6) {
+      setModal({ show: true, title: '密碼太短', message: '新密碼至少需要 6 個字元。' });
+      return;
+    }
+
+    setIsResetPasswordWorking(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      setIsResetPasswordOpen(false);
+      setModal({ show: true, title: '密碼已更新', message: '之後可以使用新密碼登入雲端同步。' });
+    } catch (error) {
+      console.error(error);
+      setModal({ show: true, title: '更新失敗', message: error.message || '重設密碼連結可能已過期，請重新寄送一次。' });
+    } finally {
+      setIsResetPasswordWorking(false);
     }
   };
 
@@ -3026,7 +3166,15 @@ export default function App() {
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
         onSubmit={handleAuthSubmit}
+        onResetPassword={handleRequestPasswordReset}
         isWorking={isAuthWorking}
+      />
+
+      <ResetPasswordModal
+        isOpen={isResetPasswordOpen}
+        onClose={() => setIsResetPasswordOpen(false)}
+        onSubmit={handleUpdatePassword}
+        isWorking={isResetPasswordWorking}
       />
 
       <div className="pdf-render-host" aria-hidden="true">
