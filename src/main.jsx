@@ -7,12 +7,14 @@ import {
   Search, Check, X, Image as ImageIcon, Code, Bug, Github, Star, Tag, 
   Save, ChevronLeft, Calendar, Target, CheckCircle, Clock, MapPin, User, Edit3,
   ArrowUp, ArrowDown, Maximize2, FileText, LayoutDashboard, FileJson, PenLine,
-  ChevronDown, ChevronRight
+  ChevronDown, ChevronRight, Cloud, LogIn, LogOut
 } from 'lucide-react';
 import LearningPortfolioPDF from './components/pdf/LearningPortfolioPDF';
 import WritingCenter from './components/writing/WritingCenter';
 import heroImage from './assets/tnfsh-mascot-hero.png';
 import { PPT_BACKGROUNDS } from './data/pptBackgrounds';
+import { isSupabaseConfigured, supabase } from './lib/supabaseClient';
+import { CLOUD_DATASETS, loadCloudBundle, saveCloudBundle, upsertCloudDataset } from './lib/cloudSync';
 import './styles.css';
 
 const DEFAULT_AVAILABLE_TAGS = [
@@ -450,6 +452,52 @@ const Button = ({ children, onClick, variant = 'primary', className = '', icon: 
       {Icon && <Icon size={16} />}
       {children}
     </button>
+  );
+};
+
+const AuthPanel = ({ user, cloudStatus, onOpenAuth, onSignOut, compact = false }) => (
+  <div className={`auth-panel ${compact ? 'is-compact' : ''}`}>
+    <div className="auth-panel-status">
+      <Cloud size={compact ? 16 : 18} />
+      <div>
+        <strong>{user ? '雲端同步已登入' : '本機模式'}</strong>
+        <span>{user?.email || (isSupabaseConfigured ? '登入後可跨裝置同步' : '尚未設定 Supabase')}</span>
+      </div>
+    </div>
+    {user ? (
+      <Button variant="secondary" icon={LogOut} onClick={onSignOut}>{compact ? '' : '登出'}</Button>
+    ) : (
+      <Button variant="secondary" icon={LogIn} onClick={onOpenAuth} disabled={!isSupabaseConfigured}>{compact ? '' : '登入'}</Button>
+    )}
+    {cloudStatus && !compact && <p>{cloudStatus}</p>}
+  </div>
+);
+
+const AuthModal = ({ isOpen, onClose, onSubmit, isWorking }) => {
+  const [mode, setMode] = useState('signIn');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const submit = async (event) => {
+    event.preventDefault();
+    await onSubmit({ mode, email, password });
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="雲端登入">
+      <form onSubmit={submit} className="auth-form">
+        <div className="auth-mode-toggle">
+          <button type="button" className={mode === 'signIn' ? 'is-active' : ''} onClick={() => setMode('signIn')}>登入</button>
+          <button type="button" className={mode === 'signUp' ? 'is-active' : ''} onClick={() => setMode('signUp')}>註冊</button>
+        </div>
+        <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="name@example.com" />
+        <Input label="密碼" type="password" value={password} onChange={setPassword} placeholder="至少 6 個字元" />
+        <Button type="submit" icon={LogIn} disabled={isWorking || !email || !password}>
+          {isWorking ? '處理中...' : mode === 'signIn' ? '登入雲端' : '建立帳號'}
+        </Button>
+        <p>註冊後若 Supabase 有開啟 Email 確認，請先到信箱完成確認再登入。</p>
+      </form>
+    </Modal>
   );
 };
 
@@ -1560,7 +1608,77 @@ const ProjectReportEditor = ({ project, missions, reflectionTemplates, writingTi
   );
 };
 
-const ProjectCenter = ({ projects, missions, selectedProjectId, onSaveProject, onDeleteProject, onCreateMission, onOpenProjectReport }) => {
+const MobileProjectMissionTree = ({ projects, missions, selectedProjectId, editingId, onSelectProject, onSelectMission }) => {
+  const [openProjectIds, setOpenProjectIds] = useState(() => new Set(selectedProjectId ? [selectedProjectId] : projects.map(project => project.id)));
+  const missionsByProject = useMemo(() => {
+    const groups = {};
+    missions.forEach(mission => {
+      const key = mission.projectId || 'unassigned';
+      groups[key] = groups[key] || [];
+      groups[key].push(mission);
+    });
+    return groups;
+  }, [missions]);
+
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    setOpenProjectIds(prev => {
+      if (prev.has(selectedProjectId)) return prev;
+      const next = new Set(prev);
+      next.add(selectedProjectId);
+      return next;
+    });
+  }, [selectedProjectId]);
+
+  const toggleProject = (projectId) => {
+    setOpenProjectIds(prev => {
+      const next = new Set(prev);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
+  };
+
+  if (projects.length === 0 && missions.length === 0) return null;
+
+  return (
+    <section className="mobile-project-mission-tree md:hidden">
+      <div className="mobile-project-mission-head">
+        <FileJson size={18} />
+        <h3>專案 Mission</h3>
+      </div>
+      <div className="mobile-project-mission-list">
+        {projects.map(project => {
+          const projectMissions = missionsByProject[project.id] || [];
+          const isOpen = openProjectIds.has(project.id);
+          const ToggleIcon = isOpen ? ChevronDown : ChevronRight;
+          return (
+            <div key={project.id} className="mobile-project-mission-group">
+              <button type="button" className="mobile-project-mission-project" onClick={() => { toggleProject(project.id); onSelectProject(project.id); }} aria-expanded={isOpen}>
+                <ToggleIcon size={16} />
+                <span>{project.name || '未命名專案'}</span>
+                <em>{projectMissions.length}</em>
+              </button>
+              {isOpen && (
+                <div className="mobile-project-mission-items">
+                  {projectMissions.map(mission => (
+                    <button key={mission.id} type="button" className={`mobile-project-mission-item ${editingId === mission.id ? 'is-active' : ''}`} onClick={() => onSelectMission(mission)}>
+                      <span>{mission.title || '未命名任務'}</span>
+                      <small>{mission.date || '未設定日期'}</small>
+                    </button>
+                  ))}
+                  {projectMissions.length === 0 && <p>尚無 Mission</p>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
+const ProjectCenter = ({ projects, missions, selectedProjectId, editingId, onSelectProject, onSelectMission, onSaveProject, onDeleteProject, onCreateMission, onOpenProjectReport }) => {
   const [draft, setDraft] = useState(createDefaultProject);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState(null);
@@ -1587,6 +1705,15 @@ const ProjectCenter = ({ projects, missions, selectedProjectId, onSaveProject, o
 
   return (
     <div className="space-y-6">
+      <MobileProjectMissionTree
+        projects={projects}
+        missions={missions}
+        selectedProjectId={selectedProjectId}
+        editingId={editingId}
+        onSelectProject={onSelectProject}
+        onSelectMission={onSelectMission}
+      />
+
       {!showCreateForm && projects.length > 0 && (
         <div className="flex justify-end">
           <Button icon={Plus} onClick={() => setShowCreateForm(true)}>新增專案</Button>
@@ -2128,7 +2255,7 @@ const EvidenceCenter = ({ missions, projects }) => {
   );
 };
 
-const InfoCenter = ({ missions, projects, availableTags, onAddTag, onDeleteTag, onExportJson, onImportJson, onExportPdf, isExportingPdf }) => {
+const InfoCenter = ({ missions, projects, availableTags, user, cloudStatus, onOpenAuth, onSignOut, onUploadCloud, onDownloadCloud, onAddTag, onDeleteTag, onExportJson, onImportJson, onExportPdf, isExportingPdf, isCloudWorking }) => {
   const [section, setSection] = useState('evidence');
 
   const InfoTab = ({ id, label, icon: Icon }) => (
@@ -2144,6 +2271,7 @@ const InfoCenter = ({ missions, projects, availableTags, onAddTag, onDeleteTag, 
         <InfoTab id="evidence" label="證據中心" icon={Database} />
         <InfoTab id="tags" label="能力標籤" icon={Tag} />
         <InfoTab id="data" label="資料管理" icon={Download} />
+        <InfoTab id="cloud" label="雲端同步" icon={Cloud} />
       </div>
 
       {section === 'evidence' && <EvidenceCenter missions={missions} projects={projects} />}
@@ -2178,6 +2306,31 @@ const InfoCenter = ({ missions, projects, availableTags, onAddTag, onDeleteTag, 
               <h3 className="font-bold text-slate-800 mb-1">{isExportingPdf ? '產生 PDF 中' : '匯出歷程 PDF'}</h3>
               <p className="text-sm text-slate-500">下載正式 A4 學習歷程文件。</p>
             </button>
+          </div>
+        </SectionCard>
+      )}
+
+      {section === 'cloud' && (
+        <SectionCard title="雲端同步" icon={Cloud}>
+          <div className="cloud-sync-card">
+            <AuthPanel user={user} cloudStatus={cloudStatus} onOpenAuth={onOpenAuth} onSignOut={onSignOut} />
+            <div className="cloud-sync-actions">
+              <button onClick={onUploadCloud} disabled={!user || isCloudWorking}
+                className="min-h-[110px] rounded-xl border border-slate-200 bg-slate-50 p-5 text-left hover:bg-white hover:shadow-sm transition disabled:opacity-50">
+                <Upload size={24} className="text-blue-600 mb-3" />
+                <h3 className="font-bold text-slate-800 mb-1">本機資料上傳雲端</h3>
+                <p className="text-sm text-slate-500">把目前這台裝置的 Project、Mission、標題寫作與能力標籤同步到 Supabase。</p>
+              </button>
+              <button onClick={onDownloadCloud} disabled={!user || isCloudWorking}
+                className="min-h-[110px] rounded-xl border border-slate-200 bg-slate-50 p-5 text-left hover:bg-white hover:shadow-sm transition disabled:opacity-50">
+                <Download size={24} className="text-blue-600 mb-3" />
+                <h3 className="font-bold text-slate-800 mb-1">雲端資料下載到本機</h3>
+                <p className="text-sm text-slate-500">用 Supabase 的資料覆蓋目前瀏覽器資料，適合換電腦或手機使用。</p>
+              </button>
+            </div>
+            {!isSupabaseConfigured && (
+              <p className="project-report-hint">尚未設定 Supabase 環境變數：VITE_SUPABASE_URL、VITE_SUPABASE_ANON_KEY。</p>
+            )}
           </div>
         </SectionCard>
       )}
@@ -2300,6 +2453,11 @@ export default function App() {
   const [modal, setModal] = useState({ show: false, title: '', message: '' });
   const [saveNotice, setSaveNotice] = useState('');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [user, setUser] = useState(null);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isAuthWorking, setIsAuthWorking] = useState(false);
+  const [isCloudWorking, setIsCloudWorking] = useState(false);
+  const [cloudStatus, setCloudStatus] = useState('');
   const pdfRef = useRef(null);
 
   useEffect(() => {
@@ -2320,16 +2478,130 @@ export default function App() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!supabase) return undefined;
+
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user || null);
+    });
+
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => subscription.subscription.unsubscribe();
+  }, []);
+
+  const setTemporaryCloudStatus = (message) => {
+    setCloudStatus(message);
+    window.setTimeout(() => setCloudStatus(''), 2600);
+  };
+
   const persistValue = async (key, value, applyState) => {
     try {
       applyState(value);
       await localforage.setItem(key, value);
+      if (user?.id) {
+        const datasetKeyByLocalKey = {
+          [MISSIONS_KEY]: CLOUD_DATASETS.missions,
+          [PROJECTS_KEY]: CLOUD_DATASETS.projects,
+          [TAGS_KEY]: CLOUD_DATASETS.tags,
+          [TITLES_KEY]: CLOUD_DATASETS.writingTitles
+        };
+        const datasetKey = datasetKeyByLocalKey[key];
+        if (datasetKey) {
+          await upsertCloudDataset(user.id, datasetKey, value);
+          setTemporaryCloudStatus('已同步雲端');
+        }
+      }
       setSaveNotice('已儲存');
       window.setTimeout(() => setSaveNotice(''), 1800);
     } catch (error) {
       console.error(error);
-      setModal({ show: true, title: '儲存失敗', message: '資料無法寫入瀏覽器儲存空間，請先匯出 JSON 備份後再繼續操作。' });
+      setModal({ show: true, title: '儲存失敗', message: user?.id ? '資料已嘗試寫入，但雲端同步或本機儲存發生問題。請先匯出 JSON 備份後再繼續操作。' : '資料無法寫入瀏覽器儲存空間，請先匯出 JSON 備份後再繼續操作。' });
       throw error;
+    }
+  };
+
+  const applyDataBundle = async (bundle) => {
+    const nextMissions = Array.isArray(bundle.missions) ? bundle.missions.map(normalizeMission) : [];
+    const nextProjects = Array.isArray(bundle.projects) ? bundle.projects.map(normalizeProject) : [];
+    const nextTags = Array.isArray(bundle.availableTags) && bundle.availableTags.length > 0 ? bundle.availableTags : DEFAULT_AVAILABLE_TAGS;
+    const nextTitles = Array.isArray(bundle.writingTitles) ? bundle.writingTitles.map(normalizeWritingTitle) : [];
+
+    setMissions(nextMissions);
+    setProjects(nextProjects);
+    setAvailableTags(nextTags);
+    setWritingTitles(nextTitles);
+
+    await Promise.all([
+      localforage.setItem(MISSIONS_KEY, nextMissions),
+      localforage.setItem(PROJECTS_KEY, nextProjects),
+      localforage.setItem(TAGS_KEY, nextTags),
+      localforage.setItem(TITLES_KEY, nextTitles)
+    ]);
+  };
+
+  const handleAuthSubmit = async ({ mode, email, password }) => {
+    if (!supabase) return;
+    setIsAuthWorking(true);
+    try {
+      const authCall = mode === 'signUp'
+        ? supabase.auth.signUp({ email, password })
+        : supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await authCall;
+      if (error) throw error;
+      setUser(data.user || data.session?.user || null);
+      setIsAuthOpen(false);
+      setModal({
+        show: true,
+        title: mode === 'signUp' ? '註冊完成' : '登入成功',
+        message: mode === 'signUp' ? '如果 Supabase 要求 Email 確認，請先到信箱完成確認後再登入。' : '已登入雲端同步。'
+      });
+    } catch (error) {
+      console.error(error);
+      setModal({ show: true, title: '登入失敗', message: error.message || '請確認 Email 與密碼是否正確。' });
+    } finally {
+      setIsAuthWorking(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setUser(null);
+    setTemporaryCloudStatus('已登出雲端');
+  };
+
+  const handleUploadCloud = async () => {
+    if (!user?.id) return;
+    setIsCloudWorking(true);
+    try {
+      await saveCloudBundle(user.id, { missions, projects, availableTags, writingTitles });
+      setTemporaryCloudStatus('本機資料已上傳雲端');
+      setModal({ show: true, title: '雲端同步完成', message: '本機資料已同步到 Supabase。' });
+    } catch (error) {
+      console.error(error);
+      setModal({ show: true, title: '雲端同步失敗', message: error.message || '請確認資料表與 RLS policy 是否已建立。' });
+    } finally {
+      setIsCloudWorking(false);
+    }
+  };
+
+  const handleDownloadCloud = async () => {
+    if (!user?.id) return;
+    if (!window.confirm('這會用雲端資料覆蓋目前瀏覽器資料。建議先匯出 JSON 備份。確定下載雲端資料嗎？')) return;
+    setIsCloudWorking(true);
+    try {
+      const bundle = await loadCloudBundle(user.id);
+      await applyDataBundle(bundle || {});
+      setTemporaryCloudStatus('雲端資料已下載到本機');
+      setModal({ show: true, title: '下載完成', message: 'Supabase 資料已載入目前瀏覽器。' });
+    } catch (error) {
+      console.error(error);
+      setModal({ show: true, title: '下載失敗', message: error.message || '請確認已建立 Supabase 資料表。' });
+    } finally {
+      setIsCloudWorking(false);
     }
   };
 
@@ -2457,7 +2729,8 @@ export default function App() {
       exportedAt: new Date().toISOString(),
       missions,
       projects,
-      availableTags
+      availableTags,
+      writingTitles
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -2484,6 +2757,7 @@ export default function App() {
           await saveMissions(json.missions.map(normalizeMission));
           await saveProjects(Array.isArray(json.projects) ? json.projects.map(normalizeProject) : []);
           await saveAvailableTags(Array.isArray(json.availableTags) && json.availableTags.length > 0 ? json.availableTags : DEFAULT_AVAILABLE_TAGS);
+          await saveWritingTitles(Array.isArray(json.writingTitles) ? json.writingTitles.map(normalizeWritingTitle) : []);
           setModal({ show: true, title: '成功', message: '資料已成功匯入！' });
         } else throw new Error();
       } catch {
@@ -2572,10 +2846,16 @@ export default function App() {
           <NavItem tab="writing" icon={PenLine} label="寫作中心" onClick={() => { setSelectedProjectId(''); setCurrentTab('writing'); }} />
           <NavItem tab="info" icon={Database} label="資訊中心" onClick={() => { setSelectedProjectId(''); setCurrentTab('info'); }} />
         </nav>
+        <AuthPanel
+          user={user}
+          cloudStatus={cloudStatus}
+          onOpenAuth={() => setIsAuthOpen(true)}
+          onSignOut={handleSignOut}
+        />
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+      <main className="flex-1 flex flex-col min-h-[100dvh] md:h-screen md:overflow-hidden relative">
         {/* Mobile Header */}
         <header className="md:hidden bg-white border-b border-slate-200 p-4 flex justify-between items-center z-10 sticky top-0">
           <div className="flex items-center gap-2">
@@ -2584,8 +2864,17 @@ export default function App() {
           </div>
           <button onClick={() => setModal({ show: true, title: '功能', message: '行動版建議使用下方導覽列。備份等進階功能請使用桌面版操作。' })} className="text-slate-500"><Settings size={20}/></button>
         </header>
+        <div className="md:hidden px-4 pt-4">
+          <AuthPanel
+            user={user}
+            cloudStatus={cloudStatus}
+            onOpenAuth={() => setIsAuthOpen(true)}
+            onSignOut={handleSignOut}
+            compact
+          />
+        </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 relative">
+        <div className="md:flex-1 md:overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 relative">
           <div className="max-w-6xl mx-auto">
             {saveNotice && (
               <div className="fixed right-4 top-4 z-50 rounded-xl border border-emerald-100 bg-white px-4 py-2 text-sm font-bold text-emerald-700 shadow-card">
@@ -2612,6 +2901,9 @@ export default function App() {
                   projects={projects}
                   missions={missions}
                   selectedProjectId={selectedProjectId}
+                  editingId={editingId}
+                  onSelectProject={handleSelectProject}
+                  onSelectMission={handleSelectMission}
                   onSaveProject={handleSaveProject}
                   onDeleteProject={handleDeleteProject}
                   onCreateMission={handleCreateMissionForProject}
@@ -2671,12 +2963,19 @@ export default function App() {
                   missions={missions}
                   projects={projects}
                   availableTags={availableTags}
+                  user={user}
+                  cloudStatus={cloudStatus}
+                  onOpenAuth={() => setIsAuthOpen(true)}
+                  onSignOut={handleSignOut}
+                  onUploadCloud={handleUploadCloud}
+                  onDownloadCloud={handleDownloadCloud}
                   onAddTag={handleAddTag}
                   onDeleteTag={handleDeleteTag}
                   onExportJson={handleExportJson}
                   onImportJson={handleImportJson}
                   onExportPdf={handleExportPdf}
                   isExportingPdf={isExportingPdf}
+                  isCloudWorking={isCloudWorking}
                 />
               </div>
             )}
@@ -2722,6 +3021,13 @@ export default function App() {
           <Button onClick={() => setModal({ show: false, title: '', message: '' })}>確定</Button>
         </div>
       </Modal>
+
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onSubmit={handleAuthSubmit}
+        isWorking={isAuthWorking}
+      />
 
       <div className="pdf-render-host" aria-hidden="true">
         <LearningPortfolioPDF ref={pdfRef} missions={missions} projects={projects} generatedAt={new Date()} />
